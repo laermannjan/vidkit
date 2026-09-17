@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>player</title>
+<style>body{font:14px system-ui;margin:0;padding:16px;background:#000;color:#fff}
+ .cap{color:#bbb;font-size:12px;margin-top:8px}
+ button{background:#fff;color:#000;border:0;border-radius:4px;padding:8px 16px;cursor:pointer}</style>
+<button id="p">▶ play</button>
+<p class="cap" id="cap">Recorded by Jane Roe</p>
+<script>
+const S={a:'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8',
+         b:'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8'};
+const which=new URLSearchParams(location.search).get('v')||'a';
+// Real embeds fetch their master when the player loads, not when you press play.
+fetch(S[which],{mode:'no-cors'}).catch(()=>{});
+document.getElementById('p').onclick=()=>fetch(S[which],{mode:'no-cors'}).catch(()=>{});
+</script>

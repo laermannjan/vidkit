@@ -1,0 +1,22 @@
+# Browser profile the capture prototype persists logins in. ~93 MB, machine-local.
+prototype/.profile/
+
+# Plans are temporary working files, never source.
+*.tsv
+!prototype/smoke-plan.tsv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.egg-info/
+
+# Tooling caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.ty_cache/
+
+# macOS
+.DS_Store
