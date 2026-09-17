@@ -22,8 +22,7 @@ Three phases, three different demands.
 | process | robust, unambiguous, dry-runnable | a batch pipeline |
 
 Capture runs locally: it needs a real browser, your logins and your mouse. Process is
-where the external binaries live and is the half worth containerising. The plan file is
-the boundary.
+where the external binaries live. The plan file is the boundary.
 
 ## Plan file
 
@@ -33,12 +32,14 @@ empty if the file is absent or empty. No separate init, no append mode.
 **Plans are temporary.** Capture, process, done - then delete it. Nothing is designed
 around keeping one.
 
+**The plan is read-only to `process`.** Only capture writes it. Process state lives in
+the cache; see Process.
+
 TSV, one file, one row per source URL. Tab-delimited with no quoting: capture
 normalises whitespace on every value, so no field can contain a tab.
 
 | column | notes |
 |---|---|
-| `id` | stable row identity, survives reordering and reformatting. Opaque, unique within a plan, never reused |
 | `show` | empty means standalone |
 | `season` | year or ordinal |
 | `day` | optional, day within a multi-day course |
@@ -50,8 +51,12 @@ normalises whitespace on every value, so no field can contain a tab.
 | `url` | the master playlist |
 | `referer` | captured from the player's own request |
 
-Item identity is `(show, season, day, number)`. Rows sharing it are one video and their
+Video identity is `(show, season, day, number)`. Rows sharing it are one video and their
 sources merge into its audio tracks. A group of one is a plain download.
+
+Row identity is `(show, season, day, number, lang)`. Two rows of one video with the same
+language are a duplicate. Nothing else is needed to identify a row, so there is no id
+column: the tuple survives reordering and reformatting on its own.
 
 `show`, `season`, `day`, `number`, `title`, `artist` describe the **video** and are
 shared by all its language rows. `lang`, `url`, `referer`, `default` describe **one
@@ -84,13 +89,17 @@ offers the choice rather than guessing.
 | start a new day | `day` + 1, `number` back to 1 |
 | start a different course | clears everything |
 
+The plan is written to disk after every save, not at the end. A browser crash costs the
+row in progress, never the ones already saved.
+
 **Suggestions.** `show`, `title` and `artist` offer values already used in the plan,
 fuzzy-matched. Matched characters are marked; characters that match only case-
 insensitively are marked differently. Enter takes the top one.
 
 **Plan view.** Two tabs: items grouped by course with their languages, and the file
 tree that would be written with audio tracks per file. Clicking a language loads that
-source into the form for repair; clicking × removes a video and all its languages.
+source into the form for repair; clicking x removes a video and all its languages.
+Rows that fail validation are marked.
 
 ## Editing
 
@@ -109,13 +118,22 @@ you cannot type a stream URL you do not have.
 | command | arguments | exit |
 |---|---|---|
 | `vidkit capture` | `<plan.tsv> [url]` | 0 |
-| `vidkit check` | `<plan.tsv>` | 0 clean, 1 problems found |
-| `vidkit process` | `<plan.tsv> [--dry-run]` | 0 all written, 1 any failed |
-| `vidkit doctor` | | 0 all tools present, 1 any missing |
+| `vidkit process` | `<plan.tsv> [--dry-run]` | 0 all written, 1 any failed or plan invalid |
+| `vidkit doctor` | | 0 all tools present and roots configured, 1 anything missing |
 
-## check
+## Validation
 
-Runs before processing and on demand. Reports every problem found, not the first.
+Not a command. `process` validates the whole plan before it touches the network, and
+reports every problem found rather than the first.
+
+The point is not input hygiene - it is that a forty-video plan runs for hours, and you
+must not learn at hour three that row 12 has a language mkvmerge will reject. A good
+error message at the moment of failure does not buy that, because the time is already
+spent.
+
+One function, used three ways: `process` runs it up front, `--dry-run` is its on-demand
+form, and capture runs it to mark bad rows in the plan view.
+
 The checks come from failures actually hit; the error/warning split is a first pass.
 
 | check | severity |
@@ -123,22 +141,24 @@ The checks come from failures actually hit; the error/warning split is a first p
 | `lang` not accepted by `mkvmerge --list-languages` | error |
 | row has no `url` | error |
 | two videos resolve to the same output path | error |
-| `id` missing or duplicated | error |
 | rows of one video disagree on an item-level field | error |
+| two rows of one video share a `lang` | error |
 | a video has no `default`, or more than one | warning - first source wins |
 | `show` differs from another only by case or whitespace | warning - a typo splitting a group |
 | `referer` absent | warning - the download may be refused |
 
+Errors stop the run before anything is fetched. Warnings print and the run continues.
+
 ## Process
 
-Not built, and not thought through. What follows is what must be true, not how.
+`vidkit process <plan.tsv> [--dry-run]`
 
 Per video - a group of rows sharing `(show, season, day, number)`:
 
 - Every source is fetched, using its `referer`.
 - With more than one source, their audio is aligned before merging.
-- The result is one MKV: video from the first source, one audio track per source, each
-  carrying its language and a track name, with `default` set.
+- The result is one MKV: video from the source with the longest preamble, one audio
+  track per source, each carrying its language and a track name, with `default` set.
 - Untargeted Matroska tags are written.
 - It lands at its output path, and never appears there in a partial state.
 - What happened is reported: each video, its sources, the offsets applied, the output
@@ -146,48 +166,104 @@ Per video - a group of rows sharing `(show, season, day, number)`:
 
 `--dry-run` produces that report without touching the network or the disk.
 
-Deliberately not decided:
+The video comes from the **longest** preamble so every other audio track shifts forward
+and nothing is trimmed. Choosing a shorter source as the base would need a negative
+`--sync`, which cuts the head off the other tracks. This is independent of `default`,
+which says which audio plays, not where the video comes from.
 
-| question |
-|---|
-| Does a failed video abort the run, or get skipped and reported at the end? |
-| Are downloads cached? Keyed how? Does a re-run refetch? |
-| Is an interrupted download resumed or discarded? |
-| One video at a time, or several in parallel? |
-| Where does intermediate state live, and who cleans it up? |
+### State
+
+State is derived, never recorded. **A file at its final name is complete.** Nothing is
+written at its final name until it is finished: write `X.part`, then rename. `os.replace`
+is atomic within a filesystem, so existence is proof. No status field, no sidecar, no
+lock file, no column in the plan.
+
+```
+~/.cache/vidkit/
+  src/<url-hash>/source.mkv      yt-dlp writes .part itself and resumes it
+  src/<url-hash>/audio-8k.raw    mono PCM for correlation
+  item/<item-hash>/offsets.json
+  item/<item-hash>/merged.mkv
+```
+
+| key | derived from |
+|---|---|
+| `url-hash` | the source URL. It identifies the bytes |
+| `item-hash` | the source keys in order, plus `lang`, `default` and the offsets. Everything that changes the muxed bytes |
+
+Title, artist and overview are deliberately **not** in `item-hash`. Tags are applied by
+`mkvpropedit` after the mux, so correcting a title is a re-tag - never a re-download,
+never a remux. The expensive line is drawn at the download; a remux is a copy with no
+re-encode.
+
+The destination is written the same way: copy the merged file to `<dest>.part`, tag it,
+rename. On APFS that copy is a copy-on-write clone and near free.
+
+A resumed run starts at the first missing file. A second run of a finished plan does
+nothing but verify and report. That is what makes the pipeline idempotent, and it falls
+out of the rename rule rather than being built on top of it.
+
+The cache is a cache: safe to delete at any time, never required for correctness.
+
+### Decided
+
+| question | answer |
+|---|---|
+| Does a failed video abort the run? | No. Skipped, reported at the end, exit 1 |
+| Are downloads cached? Keyed how? | Yes, by URL hash, under `~/.cache/vidkit` |
+| Is an interrupted download resumed? | Yes. yt-dlp's `.part` already does it |
+| One video at a time, or several? | One. yt-dlp already parallelises fragments and mkvmerge does no re-encoding. Add `--jobs` only after measuring that the link is not saturated |
+| Where does intermediate state live, and who cleans it up? | The cache. Nobody has to; it is safe to delete |
 
 ## Sync detection
 
-Language variants share a jingle near the start - the same fixed marker in both, like a
-clapperboard. What varies is how much precedes it. Cross-correlation finds it: sliding
-one signal against the other locks onto the jingle wherever it sits, so a differing
-lead-in is handled by the method rather than defeating it.
+Each source is internally consistent: its preamble sits in both its video and its audio,
+so a source never drifts against itself. Sources differ only in how long that preamble
+runs before the lecture starts, and they share a jingle at that point - the same fixed
+marker in both, like a clapperboard.
+
+So two sources are related by exactly one constant offset. Cross-correlation finds it:
+sliding one signal against the other locks onto the jingle wherever it sits, so a
+differing preamble is handled by the method rather than defeating it.
+
+Both signals are mono PCM at 8 kHz, extracted with `ffmpeg -ar 8000 -ac 1 -f s16le`.
+Mono because the jingle starts at the same instant in both channels. 8 kHz because the
+onset of a jingle does not live in the high frequencies. That makes the arrays small
+enough for a full-precision FFT correlation in numpy: no value is skipped, and
+resolution is 0.125 ms rather than the prototype's 10 ms.
 
 What must hold:
 
 - The window must be long enough that the jingle falls inside it in **both** files.
-- The search range must cover the largest difference in lead-in.
-- Precision must not be traded away to make the search affordable. The current
-  implementation samples every tenth value at 10 ms steps - a speed workaround in pure
-  Python, not a decision.
-- A weak correlation peak is reported as low confidence, never applied silently.
+- The search range must cover the largest difference in preamble length. **Unmeasured.**
+  The prototype used +/-5 s, which was a guess. If real preambles differ by 40 s, a
+  +/-5 s search returns a confident-looking wrong answer.
+- A weak correlation peak refuses the video. Never applied silently.
 
-The existing implementation uses a 10 s window and a ±5 s range. Whether that is enough
-depends on how long lead-ins actually run, which nobody has measured. Measure before
-choosing numbers.
+Not supported, and refused rather than guessed at:
 
-Unproven idea: correlate a second window from the middle of the file as a consistency
-check. If it disagrees with the first, the two are not related by a single constant
-offset - a case probably worth refusing rather than merging.
+- sources with no shared jingle
+- sources paced differently, so that no single offset exists
+- a cut or ad break present in one source and not the other
+
 ## Output layout
+
+Roots come from `~/.config/vidkit/config.toml`, overridable per run:
+
+```toml
+series_root     = "/Volumes/media/Shows"
+standalone_root = "/Volumes/media/Films"
+```
+
+`doctor` reports them when unset. `process --dry-run` cannot print a tree without them.
 
 ```
 Introduction to Foo/Season 2026/Introduction to Foo - S2026E0101 - What Foo Is.mkv
 A Talk About Bar (2023)/A Talk About Bar (2023).mkv
 ```
 
-Container is MKV. Series and standalone items go to separate output roots. Artist is
-carried in tags, not in filenames.
+Container is MKV. Series and standalone items go to separate roots. Artist is carried
+in tags, not in filenames.
 
 `day` and `number` derive the episode token: four digits when `day` is set (`E0302`),
 two when it is not (`E03`). The sort integer is `day*100 + number`.
@@ -204,10 +280,14 @@ two when it is not (`E03`). The sort integer is `day*100 + number`.
 6. `lang` is BCP 47: a 2-3 letter primary subtag known to `mkvmerge --list-languages`,
    optionally a 4-letter script and a 2-letter or 3-digit region. Common words are
    translated to codes on entry; anything else is rejected before it can reach the mux.
-7. Sync samples several windows across the file, reports the median, and refuses with a
-   warning when they disagree - rather than emitting a silently wrong merge.
+7. Sync is one constant offset, found by correlating a shared jingle. A weak peak
+   refuses the video rather than emitting a silently wrong merge.
 8. A stream binds to a video only on evidence: the frame that requested it, or a
    deliberate choice. Never proximity, never recency.
+9. A file at its final name is complete. Nothing is written at its final name until it
+   is finished.
+10. Tags are applied after the mux, not during it. A metadata fix must never cost a
+    download or a remux.
 
 ## External tools
 
@@ -217,8 +297,8 @@ two when it is not (`E03`). The sort integer is `day*100 + number`.
 | ffmpeg / ffprobe | mise | probing, PCM extraction |
 | mkvmerge / mkvpropedit | brew - not in the mise registry | mux, tags, language validation |
 
-Checked for at startup; missing ones are named along with how to install them. No
-re-exec, no auto-install, no assumption that mise is present.
+Checked for at startup; missing ones are named along with how to install them, per
+platform. No re-exec, no auto-install, no assumption that mise is present.
 
 ## Build order
 
@@ -231,13 +311,16 @@ Each step is a PR worth a changelog line, and leaves the tool working.
 
 | # | change | done when |
 |---|---|---|
-| 1 | plan read/write, `check` | a hand-written plan is parsed and every problem in the check table is reported, with the right exit code |
+| 1 | plan read/write, validation | a hand-written plan is parsed and every problem in the validation table is reported, with the right exit code |
 | 2 | `doctor`, path resolution, `process --dry-run` | a hand-written plan prints its output tree and intended actions; no network, no writes |
 | 3 | download one source | a single-source plan fetches to the cache, resumes on re-run, leaves nothing behind on failure |
 | 4 | single-source video end to end | that plan produces a tagged MKV at the correct path |
 | 5 | merge, assuming zero offset | a two-source video becomes one MKV with two named audio tracks and the right default |
-| 6 | sync detection | a synthetic pair with a known offset is measured within tolerance; a mismatched pair warns instead of merging |
-| 7 | capture, ported from `prototype/` | a captured plan passes `check` and processes without hand editing |
+| 6 | sync detection | a synthetic pair with a known offset is measured within tolerance; a mismatched pair refuses instead of merging |
+| 7 | capture, ported from `prototype/` | a captured plan processes without hand editing |
+
+Steps 1 and 2 need no external binaries and no network. That is where the test suite
+gets built.
 
 ## Testing
 
@@ -250,25 +333,38 @@ design that failed quietly, never a crash:
 - aligned columns that could not be parsed back, silently merging two values
 
 So: the naming round trip (`parse(format(x)) == x`), sync against a known offset, the
-check rules, and grouping - that rows sharing an identity produce exactly one output.
+validation rules, grouping - that rows sharing an identity produce exactly one output -
+and cache-key derivation, that an irrelevant edit does not invalidate a download.
 
 Things that fail loudly - a missing binary, a malformed URL, mkvmerge rejecting an
 argument - do not need tests.
 
+`mkvmerge --list-languages` sits behind one function so tests can inject a fake and CI
+needs no mkvtoolnix.
+
 ## Open questions
 
-| # | Question |
+Both are measurements, not design work, and neither needs any vidkit code to exist.
+
+| # | question | why it matters |
+|---|---|---|
+| 1 | Does a captured `url` + `referer` still download an hour later? | If the CDN wants a short-lived token, a plan captured on Monday cannot be processed on Tuesday, and the capture/process boundary does not hold. A cookie column fixes an extra credential; nothing fixes an expiring one |
+| 2 | How far apart are real preambles? | Sets the correlation search range. Too narrow and sync returns a confident wrong answer |
+
+Settled, recorded so they stop being reopened:
+
+| question | answer |
 |---|---|
-| 1 | Cookies are not captured. Needed for session-gated CDNs? |
-| 2 | Naming template is a constant in the source. Worth exposing? |
-| 3 | Is a container for `process` worth it, given capture stays local? |
-| 4 | Language for the real implementation. Python assumed |
+| Naming template exposed? | No. The `SxxExx` anchor is load-bearing (FINDINGS); a free-form template invites configuring the library into misparsing. Add a named layout if a second one is ever needed |
+| Container for `process`? | No. Capture needs your real profile and your logins, so it stays local, and there is no process-only half left to containerise. Keep the code container-ready anyway: no browser in the process path, all paths from config |
+| Language? | Python 3.12+. `yt_dlp` is importable with a real API and has no compiled-language equivalent, no Matroska muxer exists outside mkvmerge, and capture is Playwright |
+| Cookies captured? | Not yet. Open question 1 decides |
 
 ## State
 
 Built and tested (79 checks, `prototype/`): the capture panel, picking, stream
 classification and binding, save modes, suggestions, plan and file-tree views,
-in-panel editing, TSV plan read/write with generated ids, loading an existing plan.
+in-panel editing, TSV plan read/write, loading an existing plan.
 
 Not built: everything in Process. Never tested against a real download - whether the
 captured referer is sufficient, whether sync works on real dubs, whether the output
