@@ -21,7 +21,7 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([[:alnum:]][[:alnum:]./_-]*\))?!?: [[:lower:]](.*[[:graph:]])?$'
+          pattern='^(chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([[:alnum:]][[:alnum:]./_-]*\))?!?: [[:lower:]](.*[[:graph:]])?$'
           if [[ ! "$PR_TITLE" =~ $pattern ]]; then
             echo "::error title=Invalid pull request title::The title does not match the required format."
             printf 'Received title: %q\n' "$PR_TITLE"
