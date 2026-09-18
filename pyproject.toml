@@ -1,6 +1,6 @@
 [project]
 name = "vidkit"
-version = "2026.9.1"
+version = "2026.9.2"
 description = "Capture video stream URLs, download them, merge multi-language audio, tag and file them into a media library"
 readme = "README.md"
 requires-python = ">=3.12"
