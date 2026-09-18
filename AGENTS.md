@@ -37,37 +37,38 @@ tag, move into place. It resumes too - a failed step costs only itself.
 
 ## Development Guidelines
 
-### Planning and design
+### Workflow
 
-A body of work gets a milestone. Write its description as prose: what is being
-built and what it covers, without implementation detail. Break the work into
-PR-sized packages, open an issue for each one against that milestone, and record
-order with `blocked by`.
+Issues and milestones are for planning ahead. A pull request is work in
+progress.
 
-Open a new issue when something turns up mid-flight, rather than widening the
-one in hand.
+Give a work package an issue when it is planned, or still only an idea, and
+should not be lost. Give a larger effort being planned or brainstormed its own
+milestone. Use milestones sparingly; an effort spanning two or three pull
+requests does not need one. Work can also start ad-hoc.
 
-Put specs, plans and task breakdowns in the pull request body. Revise that body
-as the scope changes, and again before merging, where it becomes the description
-of the finished work. The issue's comments are for discussion that predates it.
+Work happens in short-lived pull requests off `main`. Never push to `main`
+directly. Keep a pull request as small in scope as possible and as large as
+necessary.
+
+Open the pull request as soon as the work is more than something tried quickly
+on your own machine, and keep it in draft until it is ready for review. Start on
+an issue with `gh issue develop <issue> --checkout`, which links the branch and
+closes the issue when the pull request merges.
+
+A spec belongs in the pull request body while the work is in progress, whether
+it came out of the issue or out of doing the work. Keep the body current: when
+the scope changes, change the title and the body with it. Before merging, clean
+the body up so it describes what this pull request did, remembering that it
+feeds the changelog and any summary written from it.
 
 Avoid committing files that hold plans, task specs, or other ephemeral prose.
 
-### Changes
+Squash merge, so the pull request title becomes the commit subject. That is why
+CI checks the title.
 
-- Start a package with `gh issue develop <issue> --checkout`, then open a draft
-  pull request before writing code. The branch links the issue, and merging the
-  pull request closes it.
-- Short branches off `main`. Never push to `main` directly.
-- Squash merge, so the PR title becomes the commit subject. CI checks the title.
-- `mise run check` before pushing. `hk` runs the fast checks on commit.
-- A PR that needs two changelog lines to describe is worth splitting in two.
-
-**Title and body reach the changelog**, the title verbatim through git-cliff.
-Before merging, reassess whether both still describe what the PR does.
-
-The title MUST follow conventional commit format; intermediate commit subjects
-SHOULD too.
+The title reaches the changelog verbatim through git-cliff. It MUST follow
+conventional commit format; intermediate commit subjects SHOULD too.
 
 `<type>[optional scope][optional !]: <description>`
 
