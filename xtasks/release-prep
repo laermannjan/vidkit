@@ -55,8 +55,6 @@ if [[ $current =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]] &&
 	echo "pyproject is at $current with no tag: the release PR merged"
 	git tag -a "v$current" -m "v$current"
 	git push origin "v$current"
-	gh workflow run release.yml --ref "v$current" ||
-		echo "could not dispatch release.yml for v$current" >&2
 	exit 0
 fi
 
