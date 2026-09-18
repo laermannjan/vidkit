@@ -36,6 +36,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          git-cliff --strip all --latest >/tmp/notes.md
+          # The release is already titled with the tag, so the changelog's own
+          # "## [version] - date" heading would say it twice.
+          git-cliff --strip all --latest | sed '/^## \[/d' | sed '/./,$!d' >/tmp/notes.md
           [[ -s /tmp/notes.md ]] || echo "Release $TAG" >/tmp/notes.md
           gh release create "$TAG" --title "$TAG" --notes-file /tmp/notes.md
