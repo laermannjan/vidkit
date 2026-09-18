@@ -59,8 +59,8 @@ closes the issue when the pull request merges.
 A spec belongs in the pull request body while the work is in progress, whether
 it came out of the issue or out of doing the work. Keep the body current: when
 the scope changes, change the title and the body with it. Before merging, clean
-the body up so it describes what this pull request did, remembering that it
-feeds the changelog and any summary written from it.
+the body up so it describes what this pull request did. It becomes the squash
+commit message, and feeds the changelog and any summary written from it.
 
 Avoid committing files that hold plans, task specs, or other ephemeral prose.
 
@@ -129,6 +129,17 @@ A comment stops someone undoing a non-obvious decision at that line:
 `# ffmpeg's MP4 muxer truncates this to 8 bits`, beside the code that avoids it.
 
 Do not leave standing claims about how the system behaves.
+
+### Tone and language
+
+When talking with a developer, write in Simplified Technical English (ASD-STE100):
+short sentences, one idea in each, plain words, active voice.
+
+When writing user-facing documentation, or longer prose that will persist somewhere,
+follow "The Elements of Style".
+
+Name a pull request or an issue by number and title. "#6, plan: read, write and
+validate a plan file" rather than "#6" alone.
 
 ### Working with agents
 
