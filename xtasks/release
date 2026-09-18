@@ -25,14 +25,21 @@ fi
 # The heading is dropped here but kept in CHANGELOG.md: a release is already
 # titled with its tag.
 notes() {
-	git-cliff --strip all --latest 2>/dev/null | sed '/^## \[/d' | sed '/./,$!d'
+	local out=""
+	out="$(git-cliff --strip all --latest | sed '/^## \[/d' | sed '/./,$!d')" || true
+	# A command substitution in argument position discards its exit status even
+	# under set -e, so an empty result here would publish an empty release that
+	# the repair below never redoes: the release exists.
+	[[ -n $out ]] || out="Release $1"
+	printf '%s' "$out"
 }
 
 # Repairs a tag whose release never appeared.
 latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1 || true)"
 if [[ -n $latest_tag ]] && ! gh release view "$latest_tag" >/dev/null 2>&1; then
 	echo "$latest_tag has no release: creating it"
-	gh release create "$latest_tag" --title "$latest_tag" --notes "$(notes)"
+	gh release create "$latest_tag" --title "$latest_tag" --notes "$(notes "$latest_tag")" ||
+		echo "could not create the release for $latest_tag; create it by hand" >&2
 fi
 
 current="$(uv version --short)"
@@ -43,7 +50,7 @@ if [[ $current =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]] &&
 	echo "pyproject is at $current with no tag: the release PR merged"
 	git tag -a "v$current" -m "v$current"
 	git push origin "v$current"
-	gh release create "v$current" --title "v$current" --notes "$(notes)"
+	gh release create "v$current" --title "v$current" --notes "$(notes "v$current")"
 	exit 0
 fi
 

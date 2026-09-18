@@ -67,7 +67,10 @@ jobs:
   # change to branch protection.
   gate:
     needs: [lint, format, typecheck, test]
-    if: ${{ always() && !cancelled() }}
+    # always(), not `always() && !cancelled()`: the latter skips this job when a
+    # run is cancelled, and a skipped required check counts as passed. Running it
+    # costs one short job and turns a cancellation into a visible failure.
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
