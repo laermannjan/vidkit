@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026.9.1](https://github.com/laermannjan/vidkit/compare/v2026.9.0..v2026.9.1) - 2026-09-18
+
+### 📚 Documentation
+
+- dissolve the working docs into the MVP issues in [#24](https://github.com/laermannjan/vidkit/pull/24)
+
+### ⚙️ Chore
+
+- dispatch the release workflow, since a token-pushed tag fires nothing in [#27](https://github.com/laermannjan/vidkit/pull/27)
+- warn instead of failing when a release dispatch is refused in [#28](https://github.com/laermannjan/vidkit/pull/28)
+- run the release job as a github app in [#30](https://github.com/laermannjan/vidkit/pull/30)
+- drop the unagreed MIT license declaration in [#23](https://github.com/laermannjan/vidkit/pull/23)
+
 ## [2026.9.0] - 2026-09-18
 
 ### 📚 Documentation
