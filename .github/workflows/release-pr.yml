@@ -31,3 +31,7 @@ jobs:
       - run: ./xtasks/release-prep
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # git-cliff reads GITHUB_TOKEN to resolve pull requests for
+          # changelog entries. Unauthenticated it is rate limited and falls
+          # back to commit links.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
