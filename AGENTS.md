@@ -39,22 +39,25 @@ tag, move into place. It resumes too - a failed step costs only itself.
 
 ### Planning and design
 
+A body of work gets a milestone. Write its description as prose: what is being
+built and what it covers, without implementation detail. Break the work into
+PR-sized packages, open an issue for each one against that milestone, and record
+order with `blocked by`.
+
+Open a new issue when something turns up mid-flight, rather than widening the
+one in hand.
+
 Put specs, plans and task breakdowns in the pull request body. Revise that body
 as the scope changes, and again before merging, where it becomes the description
-of the finished work.
+of the finished work. The issue's comments are for discussion that predates it.
 
 Avoid committing files that hold plans, task specs, or other ephemeral prose.
 
-Work coordinated across several pull requests gets its own issue, labelled
-`tracking`. Write its body as prose: what is being built and what it covers,
-without implementation detail. Follow that with the work broken into PR-sized
-packages, nested where that helps - ordered for work that depends on what comes
-before it, unordered for work that can run in parallel. Link each package to its
-pull request and keep the technical detail in that body. The comments are the
-discussion.
-
 ### Changes
 
+- Start a package with `gh issue develop <issue> --checkout`, then open a draft
+  pull request before writing code. The branch links the issue, and merging the
+  pull request closes it.
 - Short branches off `main`. Never push to `main` directly.
 - Squash merge, so the PR title becomes the commit subject. CI checks the title.
 - `mise run check` before pushing. `hk` runs the fast checks on commit.
