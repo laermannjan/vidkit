@@ -2,17 +2,6 @@
 #MISE description="Compute the next CalVer, regenerate the changelog, refresh the release PR"
 #
 # CalVer, YYYY.M.PATCH. Same month bumps the patch, a new month resets it to 0.
-#
-# Two branches, and which one runs is decided by whether pyproject's version
-# already has a tag:
-#
-#   1. no tag for it -> the release PR just merged, so this main commit is the
-#      release. Tag it and dispatch release.yml, which creates the GitHub
-#      Release.
-#   2. it has a tag  -> ordinary work landed. Recompute the next version,
-#      regenerate the changelog and force-push `release`, so its PR always
-#      shows exactly what would ship if you merged it right now.
-#
 # A merge to main is never a release. Merging the release PR is.
 set -euo pipefail
 
@@ -21,18 +10,15 @@ if [[ -z ${GITHUB_ACTIONS:-} ]]; then
 	exit 1
 fi
 
-# Commit as whoever is pushing. BOT_SLUG comes from the app-token action; the
-# numeric id is what GitHub matches a noreply address against, so the commits
-# are attributed to the bot rather than showing as an unknown author.
+# The numeric id is what GitHub matches a noreply address against; without it
+# the commits show as an unknown author.
 bot="${BOT_SLUG:-github-actions}"
 bot_id="$(gh api "/users/${bot}%5Bbot%5D" --jq .id)"
 git config user.name "${bot}[bot]"
 git config user.email "${bot_id}+${bot}[bot]@users.noreply.github.com"
 
-# The app pushes the tag, so release.yml fires from the push event. This is the
-# fallback for when it did not: a tag with no GitHub Release gets release.yml
-# dispatched at it. Tags cut before release.yml gained its workflow_dispatch
-# trigger cannot be reached this way, which is why a refusal only warns.
+# Fallback for a tag whose push did not reach release.yml. A tag cut before
+# release.yml gained workflow_dispatch can never be dispatched, so this warns.
 latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1 || true)"
 if [[ -n $latest_tag ]] && ! gh release view "$latest_tag" >/dev/null 2>&1; then
 	active="$(gh run list --workflow release.yml --limit 20 --json status,headBranch |
@@ -41,10 +27,6 @@ if [[ -n $latest_tag ]] && ! gh release view "$latest_tag" >/dev/null 2>&1; then
 		echo "release.yml is already running for $latest_tag"
 	else
 		echo "$latest_tag has no release: dispatching release.yml"
-		# GitHub reads the workflow file at the dispatched ref, so a tag cut
-		# before release.yml gained its workflow_dispatch trigger can never be
-		# dispatched. Refreshing the release pull request matters more than
-		# reaching such a tag, so a refusal here only warns.
 		gh workflow run release.yml --ref "$latest_tag" ||
 			echo "could not dispatch release.yml for $latest_tag; create its release by hand" >&2
 	fi
@@ -52,9 +34,7 @@ fi
 
 current="$(uv version --short)"
 
-# Only ever tag something already shaped like CalVer. The 0.0.0 this repo starts
-# at deliberately fails the match and falls through to prep, which is how the
-# first real version gets computed without a special case.
+# The shape check is what stops 0.0.0 being tagged before a real version exists.
 if [[ $current =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]] &&
 	! git rev-parse -q --verify "refs/tags/v$current" >/dev/null; then
 	echo "pyproject is at $current with no tag: the release PR merged"
@@ -63,8 +43,7 @@ if [[ $current =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]] &&
 	exit 0
 fi
 
-# cliff.toml skips chore/ci/build/style, so a docs-only or tooling-only run
-# leaves this empty and the release branch is left alone rather than churned.
+# Nothing the changelog would show means nothing to churn the release branch for.
 if [[ -z "$(git-cliff --unreleased --strip all 2>/dev/null)" ]]; then
 	echo "nothing unreleased worth shipping"
 	exit 0
@@ -86,8 +65,7 @@ git add -A
 git commit -m "chore: release $next"
 git push -f origin release
 
-# Drop the "## [version] - date" heading. The pull request already carries the
-# version in its title, and CHANGELOG.md keeps the heading for its own use.
+# The heading is dropped here but kept in CHANGELOG.md: the PR title has it.
 body="$(git-cliff --unreleased --tag "v$next" --strip all | sed '/^## \[/d' | sed '/./,$!d')"
 pr="$(gh pr list --base main --head release --state open --json number --jq '.[0].number // empty')"
 if [[ -n $pr ]]; then
