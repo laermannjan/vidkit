@@ -130,13 +130,16 @@ A comment stops someone undoing a non-obvious decision at that line:
 
 Do not leave standing claims about how the system behaves.
 
+## Conduct
+
 ### Tone and language
 
 When talking with a developer, write in Simplified Technical English (ASD-STE100):
 short sentences, one idea in each, plain words, active voice.
 
-Use as little technical jargon as the meaning allows, and abbreviations least of all.
-Introduce or motivate a term the first time it carries weight.
+A technical term has to earn its place against a plain phrase. Abbreviations and
+acronyms have to earn more. Introduce or motivate a term the first time it carries
+weight.
 
 When explaining something larger - a concept, a design, a body of work - build it in
 layers, so the reader could believe they would have arrived at it themselves. Say what
