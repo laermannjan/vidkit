@@ -24,12 +24,21 @@ run = "ruff format ."
 description = "Lint and check formatting"
 run = ["ruff check .", "ruff format --check ."]
 
+[tasks.sync]
+description = "Install Python dependencies into .venv"
+run = "uv sync"
+
 [tasks.typecheck]
 description = "Type check"
+# ty resolves imports through .venv, so it needs one to exist. Locally this
+# passes without the dependency because a venv is lying around; in CI it does
+# not. Depend on it explicitly rather than on leftover state.
+depends = ["sync"]
 run = "ty check"
 
 [tasks.test]
 description = "Run the test suite"
+depends = ["sync"]
 run = "uv run pytest"
 
 [tasks.check]
