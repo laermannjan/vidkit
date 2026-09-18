@@ -35,7 +35,7 @@ conventional_commits = true
 filter_unconventional = false
 filter_commits = false
 split_commits = false
-commit_preprocessors = [{ pattern = '\(#([0-9]+)\)$', replace = "" }]
+commit_preprocessors = [{ pattern = '(?m)\s*\(#([0-9]+)\)$', replace = "" }]
 # Order matters: the release-prep commits are skipped before the generic chore
 # rule can group them. Types and sections are documented in AGENTS.md; the two
 # lists must agree.
@@ -43,14 +43,18 @@ commit_parsers = [
   { message = "^chore: release", skip = true },
   { message = "^chore\\(release\\)", skip = true },
   { message = "^Merge ", skip = true },
-  { message = "^feat", group = "<!-- 01 -->Features" },
-  { message = "^fix", group = "<!-- 02 -->Bug fixes" },
-  { message = "^perf", group = "<!-- 03 -->Performance" },
-  { message = "^refactor", group = "<!-- 04 -->Refactor" },
-  { message = "^docs", group = "<!-- 05 -->Documentation" },
-  { message = "^test", group = "<!-- 06 -->Testing" },
-  { message = "^[Rr]evert", group = "<!-- 07 -->Revert" },
-  { message = ".*", group = "<!-- 08 -->Chore" },
+  { message = "^feat", group = "<!-- 01 -->🚀 Features" },
+  { message = "^fix", group = "<!-- 02 -->🐛 Bug fixes" },
+  { message = "^perf", group = "<!-- 03 -->⚡ Performance" },
+  { message = "^refactor", group = "<!-- 04 -->🚜 Refactor" },
+  { message = "^docs", group = "<!-- 05 -->📚 Documentation" },
+  { message = "^test", group = "<!-- 06 -->🧪 Testing" },
+  { message = "^[Rr]evert", group = "<!-- 07 -->◀️ Revert" },
+  { message = ".*", group = "<!-- 08 -->⚙️ Chore" },
 ]
 tag_pattern = "v[0-9]*"
 sort_commits = "oldest"
+
+[remote.github]
+owner = "laermannjan"
+repo = "vidkit"
