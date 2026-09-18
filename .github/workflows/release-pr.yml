@@ -7,11 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Every step uses the app token. This scopes the unused GITHUB_TOKEN, so the job
+# carries no ambient write credential.
 permissions:
-  contents: write
-  pull-requests: write
-  # Needed to dispatch release.yml.
-  actions: write
+  contents: read
 
 concurrency:
   group: release-pr
@@ -20,11 +19,29 @@ jobs:
   prep:
     runs-on: ubuntu-latest
     steps:
+      # Everything here runs as the app rather than as GITHUB_TOKEN. GitHub
+      # suppresses events raised by its own token, so a tag it pushes fires
+      # nothing and a pull request it opens has its checks held for approval.
+      # An app is a separate identity, so both behave normally.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: app-token
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Narrow the token to what this job needs, so a permission the app
+          # gains for another repository is not inherited here. Workflows is
+          # required because building the release branch writes
+          # .github/workflows/* onto a branch that did not have them.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-actions: write
+          permission-workflows: write
       # This job pushes tags and the release branch, so the checkout
       # credentials are the point here rather than an oversight.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
           install_args: uv git-cliff
@@ -32,8 +49,9 @@ jobs:
           cache: false
       - run: ./xtasks/release-prep
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           # git-cliff reads GITHUB_TOKEN to resolve pull requests for
           # changelog entries. Unauthenticated it is rate limited and falls
           # back to commit links.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          BOT_SLUG: ${{ steps.app-token.outputs.app-slug }}
