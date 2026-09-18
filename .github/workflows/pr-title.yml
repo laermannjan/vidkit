@@ -1,0 +1,30 @@
+name: pr-title
+
+# PRs are squash-merged, so the PR title becomes the commit subject on main and
+# is what git-cliff reads. That makes the title the thing worth enforcing.
+# Commits inside a branch are the author's own business.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([[:alnum:]][[:alnum:]./_-]*\))?!?: [[:lower:]](.*[[:graph:]])?$'
+          if [[ ! "$PR_TITLE" =~ $pattern ]]; then
+            echo "::error title=Invalid pull request title::The title does not match the required format."
+            printf 'Received title: %q\n' "$PR_TITLE"
+            echo 'Use: <type>[optional scope][optional !]: <description starting lowercase>'
+            exit 1
+          fi

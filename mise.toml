@@ -1,0 +1,41 @@
+# Tools this repo is developed with. None of them is a runtime requirement:
+# `vidkit doctor` names what is missing and how to install it, and never assumes
+# mise is present. See SPEC.md, External tools.
+#
+# The split: uv owns Python and Python dependencies, so the interpreter is
+# pinned once in .python-version and not repeated here. mise owns everything
+# that is not a Python package.
+[tools]
+uv = "latest"
+ruff = "latest"
+ty = "latest"
+ffmpeg = "latest"
+git-cliff = "latest"
+shellcheck = "latest"
+shfmt = "latest"
+actionlint = "latest"
+zizmor = "latest"
+
+[tasks.fmt]
+description = "Format"
+run = "ruff format ."
+
+[tasks.lint]
+description = "Lint and check formatting"
+run = ["ruff check .", "ruff format --check ."]
+
+[tasks.typecheck]
+description = "Type check"
+run = "ty check"
+
+[tasks.test]
+description = "Run the test suite"
+run = "uv run pytest"
+
+[tasks.check]
+description = "Everything CI runs"
+depends = ["lint", "typecheck", "test"]
+
+[tasks.release-prep]
+description = "Compute the next CalVer, regenerate the changelog, refresh the release PR"
+run = "./xtasks/release-prep"

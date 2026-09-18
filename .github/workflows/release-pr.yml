@@ -1,0 +1,33 @@
+name: release-pr
+
+# Runs on every push to main. Either tags the commit the release PR just brought
+# in, or refreshes the release PR. See xtasks/release-prep.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    steps:
+      # This job pushes tags and the release branch, so the checkout
+      # credentials are the point here rather than an oversight.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 # zizmor: ignore[artipacked]
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          install_args: uv git-cliff
+          # Release machinery never restores a cache it could be poisoned by.
+          cache: false
+      - run: ./xtasks/release-prep
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

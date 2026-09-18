@@ -1,0 +1,31 @@
+name: release
+
+# Fired by the tag that release-prep pushes. Kept separate from release-pr so a
+# failed release can be retried by re-pushing the tag.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          install_args: git-cliff
+          cache: false
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          git-cliff --strip all --latest >/tmp/notes.md
+          [[ -s /tmp/notes.md ]] || echo "Release $TAG" >/tmp/notes.md
+          gh release create "$TAG" --title "$TAG" --notes-file /tmp/notes.md
