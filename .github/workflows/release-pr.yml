@@ -55,3 +55,4 @@ jobs:
           # changelog entries. Unauthenticated it is rate limited and falls
           # back to commit links.
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          BOT_SLUG: ${{ steps.app-token.outputs.app-slug }}

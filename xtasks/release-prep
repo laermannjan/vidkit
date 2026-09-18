@@ -21,13 +21,18 @@ if [[ -z ${GITHUB_ACTIONS:-} ]]; then
 	exit 1
 fi
 
-git config user.name "github-actions[bot]"
-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+# Commit as whoever is pushing. BOT_SLUG comes from the app-token action; the
+# numeric id is what GitHub matches a noreply address against, so the commits
+# are attributed to the bot rather than showing as an unknown author.
+bot="${BOT_SLUG:-github-actions}"
+bot_id="$(gh api "/users/${bot}%5Bbot%5D" --jq .id)"
+git config user.name "${bot}[bot]"
+git config user.email "${bot_id}+${bot}[bot]@users.noreply.github.com"
 
-# GitHub suppresses events raised by its own GITHUB_TOKEN, to stop workflows
-# looping. A tag this script pushes therefore fires nothing, and release.yml has
-# to be dispatched by hand; workflow_dispatch is exempt from the suppression.
-# If that dispatch failed, the tag is left with no GitHub Release, so re-send it.
+# The app pushes the tag, so release.yml fires from the push event. This is the
+# fallback for when it did not: a tag with no GitHub Release gets release.yml
+# dispatched at it. Tags cut before release.yml gained its workflow_dispatch
+# trigger cannot be reached this way, which is why a refusal only warns.
 latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1 || true)"
 if [[ -n $latest_tag ]] && ! gh release view "$latest_tag" >/dev/null 2>&1; then
 	active="$(gh run list --workflow release.yml --limit 20 --json status,headBranch |
