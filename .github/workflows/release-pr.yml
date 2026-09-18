@@ -10,6 +10,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Needed to dispatch release.yml.
+  actions: write
 
 concurrency:
   group: release-pr

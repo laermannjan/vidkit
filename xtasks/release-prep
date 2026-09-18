@@ -7,7 +7,8 @@
 # already has a tag:
 #
 #   1. no tag for it -> the release PR just merged, so this main commit is the
-#      release. Tag it. The tag push is what creates the GitHub Release.
+#      release. Tag it and dispatch release.yml, which creates the GitHub
+#      Release.
 #   2. it has a tag  -> ordinary work landed. Recompute the next version,
 #      regenerate the changelog and force-push `release`, so its PR always
 #      shows exactly what would ship if you merged it right now.
@@ -23,6 +24,22 @@ fi
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+# GitHub suppresses events raised by its own GITHUB_TOKEN, to stop workflows
+# looping. A tag this script pushes therefore fires nothing, and release.yml has
+# to be dispatched by hand; workflow_dispatch is exempt from the suppression.
+# If that dispatch failed, the tag is left with no GitHub Release, so re-send it.
+latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1 || true)"
+if [[ -n $latest_tag ]] && ! gh release view "$latest_tag" >/dev/null 2>&1; then
+	active="$(gh run list --workflow release.yml --limit 20 --json status,headBranch |
+		jq --arg t "$latest_tag" '[.[] | select(.headBranch == $t and .status != "completed")] | length')"
+	if [[ ${active:-0} -gt 0 ]]; then
+		echo "release.yml is already running for $latest_tag"
+	else
+		echo "$latest_tag has no release: dispatching release.yml"
+		gh workflow run release.yml --ref "$latest_tag"
+	fi
+fi
+
 current="$(uv version --short)"
 
 # Only ever tag something already shaped like CalVer. The 0.0.0 this repo starts
@@ -33,6 +50,7 @@ if [[ $current =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]] &&
 	echo "pyproject is at $current with no tag: the release PR merged"
 	git tag -a "v$current" -m "v$current"
 	git push origin "v$current"
+	gh workflow run release.yml --ref "v$current"
 	exit 0
 fi
 

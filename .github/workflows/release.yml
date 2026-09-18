@@ -5,6 +5,10 @@ name: release
 on:
   push:
     tags: ["v*"]
+  # release-prep dispatches this after pushing a tag. A tag pushed with
+  # GITHUB_TOKEN raises no event, so the push trigger above only fires for a tag
+  # pushed by a person.
+  workflow_dispatch:
 
 permissions:
   contents: write
