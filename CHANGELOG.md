@@ -1,5 +1,12 @@
 # Changelog
 
+## [2026.9.2](https://github.com/laermannjan/vidkit/compare/v2026.9.1..v2026.9.2) - 2026-09-18
+
+### ⚙️ Chore
+
+- drop the duplicated version heading from release notes in [#31](https://github.com/laermannjan/vidkit/pull/31)
+- split verification into jobs and merge the release workflows in [#33](https://github.com/laermannjan/vidkit/pull/33)
+
 ## [2026.9.1](https://github.com/laermannjan/vidkit/compare/v2026.9.0..v2026.9.1) - 2026-09-18
 
 ### 📚 Documentation
