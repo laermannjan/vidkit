@@ -135,6 +135,14 @@ Do not leave standing claims about how the system behaves.
 When talking with a developer, write in Simplified Technical English (ASD-STE100):
 short sentences, one idea in each, plain words, active voice.
 
+Use as little technical jargon as the meaning allows, and abbreviations least of all.
+Introduce or motivate a term the first time it carries weight.
+
+When explaining something larger - a concept, a design, a body of work - build it in
+layers, so the reader could believe they would have arrived at it themselves. Say what
+was chosen and what was rejected. Walk the chain: the problem, then the obvious first
+attempt, then where it breaks or what it costs, then what that forces next.
+
 When writing user-facing documentation, or longer prose that will persist somewhere,
 follow "The Elements of Style".
 
