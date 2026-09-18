@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+#MISE description="Compute the next CalVer, regenerate the changelog, refresh the release PR"
+#
+# CalVer, YYYY.M.PATCH. Same month bumps the patch, a new month resets it to 0.
+#
+# Two branches, and which one runs is decided by whether pyproject's version
+# already has a tag:
+#
+#   1. no tag for it -> the release PR just merged, so this main commit is the
+#      release. Tag it. The tag push is what creates the GitHub Release.
+#   2. it has a tag  -> ordinary work landed. Recompute the next version,
+#      regenerate the changelog and force-push `release`, so its PR always
+#      shows exactly what would ship if you merged it right now.
+#
+# A merge to main is never a release. Merging the release PR is.
+set -euo pipefail
+
+if [[ -z ${GITHUB_ACTIONS:-} ]]; then
+	echo "CI only: this force-pushes the release branch" >&2
+	exit 1
+fi
+
+git config user.name "github-actions[bot]"
+git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+current="$(uv version --short)"
+
+# Only ever tag something already shaped like CalVer. The 0.0.0 this repo starts
+# at deliberately fails the match and falls through to prep, which is how the
+# first real version gets computed without a special case.
+if [[ $current =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]] &&
+	! git rev-parse -q --verify "refs/tags/v$current" >/dev/null; then
+	echo "pyproject is at $current with no tag: the release PR merged"
+	git tag -a "v$current" -m "v$current"
+	git push origin "v$current"
+	exit 0
+fi
+
+# cliff.toml skips chore/ci/build/style, so a docs-only or tooling-only run
+# leaves this empty and the release branch is left alone rather than churned.
+if [[ -z "$(git-cliff --unreleased --strip all 2>/dev/null)" ]]; then
+	echo "nothing unreleased worth shipping"
+	exit 0
+fi
+
+year="$(date -u +%Y)"
+month="$(date -u +%-m)"
+if [[ $current == "$year.$month."* ]]; then
+	next="$year.$month.$((${current##*.} + 1))"
+else
+	next="$year.$month.0"
+fi
+echo "preparing $next"
+
+git checkout -B release
+uv version "$next"
+git-cliff --tag "v$next" -o CHANGELOG.md
+git add -A
+git commit -m "chore: release $next"
+git push -f origin release
+
+body="$(git-cliff --unreleased --tag "v$next" --strip all)"
+pr="$(gh pr list --base main --head release --state open --json number --jq '.[0].number // empty')"
+if [[ -n $pr ]]; then
+	gh pr edit "$pr" --title "chore: release $next" --body "$body"
+else
+	gh pr create --base main --head release --title "chore: release $next" --body "$body"
+fi

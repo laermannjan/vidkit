@@ -1,0 +1,31 @@
+amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Builtins.pkl"
+
+// Fast checks only. Type checking and the test suite live in `mise run check`
+// and in CI, where waiting is expected; a pre-commit hook that takes seconds
+// stops being run.
+local linters = new Mapping {
+    ["ruff"] = Builtins.ruff
+    ["ruff_format"] = Builtins.ruff_format
+    // Both builtins match an extensionless script by its shebang, so
+    // xtasks/release-prep is covered without a glob of its own.
+    ["shellcheck"] = Builtins.shellcheck
+    ["shfmt"] = Builtins.shfmt
+    ["actionlint"] = Builtins.actionlint
+    ["zizmor"] = Builtins.zizmor
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps = linters
+    }
+    ["check"] {
+        steps = linters
+    }
+    ["fix"] {
+        fix = true
+        steps = linters
+    }
+}
