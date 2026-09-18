@@ -10,12 +10,17 @@ if [[ -z ${GITHUB_ACTIONS:-} ]]; then
 	exit 1
 fi
 
-# The numeric id is what GitHub matches a noreply address against; without it
-# the commits show as an unknown author.
+# The numeric id is what GitHub matches a noreply address against. Losing it
+# costs attribution on the release commit, which is not worth failing a release
+# for, so the lookup degrades rather than aborting.
 bot="${BOT_SLUG:-github-actions}"
-bot_id="$(gh api "/users/${bot}%5Bbot%5D" --jq .id)"
 git config user.name "${bot}[bot]"
-git config user.email "${bot_id}+${bot}[bot]@users.noreply.github.com"
+if bot_id="$(gh api "/users/${bot}%5Bbot%5D" --jq .id 2>/dev/null)"; then
+	git config user.email "${bot_id}+${bot}[bot]@users.noreply.github.com"
+else
+	echo "could not resolve ${bot}[bot]; release commits will show an unlinked author" >&2
+	git config user.email "${bot}[bot]@users.noreply.github.com"
+fi
 
 # Fallback for a tag whose push did not reach release.yml. A tag cut before
 # release.yml gained workflow_dispatch can never be dispatched, so this warns.
