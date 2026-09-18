@@ -36,7 +36,12 @@ if [[ -n $latest_tag ]] && ! gh release view "$latest_tag" >/dev/null 2>&1; then
 		echo "release.yml is already running for $latest_tag"
 	else
 		echo "$latest_tag has no release: dispatching release.yml"
-		gh workflow run release.yml --ref "$latest_tag"
+		# GitHub reads the workflow file at the dispatched ref, so a tag cut
+		# before release.yml gained its workflow_dispatch trigger can never be
+		# dispatched. Refreshing the release pull request matters more than
+		# reaching such a tag, so a refusal here only warns.
+		gh workflow run release.yml --ref "$latest_tag" ||
+			echo "could not dispatch release.yml for $latest_tag; create its release by hand" >&2
 	fi
 fi
 
@@ -50,7 +55,8 @@ if [[ $current =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$ ]] &&
 	echo "pyproject is at $current with no tag: the release PR merged"
 	git tag -a "v$current" -m "v$current"
 	git push origin "v$current"
-	gh workflow run release.yml --ref "v$current"
+	gh workflow run release.yml --ref "v$current" ||
+		echo "could not dispatch release.yml for v$current" >&2
 	exit 0
 fi
 
