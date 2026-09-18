@@ -81,7 +81,6 @@ conventional commit format; intermediate commit subjects SHOULD too.
 - `docs:` documentation, wherever it lives
 - `test:` tests
 - `style:` formatting
-- `build:` packaging, dependencies, installation
 - `ci:` automation
 - `chore:` anything else, releases included
 - `revert:` reverts an earlier change
@@ -91,7 +90,8 @@ Classify by what the change is. If two types fit, either is fine. `feat`, `fix`,
 everything else lands under Chore.
 
 **Scopes** are optional: one word for the concept affected, reusing whatever is
-already in the log - `plan`, `naming`, `sync`, `cache`, `capture`, `release`.
+already in the log - `plan`, `naming`, `sync`, `cache`, `capture`, `release`,
+`deps`.
 
 **Breaking changes** take a `!`, and the body says what to do instead.
 
