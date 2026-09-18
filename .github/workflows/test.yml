@@ -61,15 +61,13 @@ jobs:
           install_args: uv
       - run: mise run test
 
-  # The only required check. A required check that is skipped counts as passed,
-  # so this asserts each result rather than relying on `needs` alone, and runs
-  # even when a dependency failed. Adding or splitting a job above needs no
-  # change to branch protection.
+  # The only check branch protection names, so adding or splitting a job above
+  # needs no ruleset change.
   gate:
     needs: [lint, format, typecheck, test]
-    # always(), not `always() && !cancelled()`: the latter skips this job when a
-    # run is cancelled, and a skipped required check counts as passed. Running it
-    # costs one short job and turns a cancellation into a visible failure.
+    # A skipped required check counts as passed, so this has to run whatever
+    # happened upstream and judge the results itself. `always() && !cancelled()`
+    # skips it on a cancelled run, which is that same hole.
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 1

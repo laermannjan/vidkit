@@ -11,8 +11,8 @@ if [[ -z ${GITHUB_ACTIONS:-} ]]; then
 fi
 
 # The numeric id is what GitHub matches a noreply address against. Losing it
-# costs attribution on one commit, not a release, so this degrades rather than
-# aborting.
+# costs attribution on the release commit, which is not worth failing a release
+# for, so this degrades rather than aborting.
 bot="${BOT_SLUG:?the workflow must pass the app slug}"
 git config user.name "${bot}[bot]"
 if bot_id="$(gh api "/users/${bot}%5Bbot%5D" --jq .id 2>/dev/null)" && [[ -n $bot_id ]]; then
@@ -34,7 +34,6 @@ notes() {
 	printf '%s' "$out"
 }
 
-# Repairs a tag whose release never appeared.
 latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1 || true)"
 if [[ -n $latest_tag ]] && ! gh release view "$latest_tag" >/dev/null 2>&1; then
 	echo "$latest_tag has no release: creating it"

@@ -1,8 +1,9 @@
 name: release
 
-# Runs on every push to main and does one of two things: cuts the release the
-# release pull request just brought in, or refreshes that pull request. Nothing
-# waits on a tag push, so there is no cross-workflow handoff to lose.
+# The tag and the release are created in the same run, so nothing waits on a tag
+# push. Re-adding a tag-triggered workflow would restore a handoff that events
+# can drop, and adding `on: push: tags` here would make this workflow trigger
+# itself.
 on:
   push:
     branches: [main]
