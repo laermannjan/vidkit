@@ -5,13 +5,18 @@ name: release
 on:
   push:
     tags: ["v*"]
-  # release-prep dispatches this after pushing a tag. A tag pushed with
-  # GITHUB_TOKEN raises no event, so the push trigger above only fires for a tag
-  # pushed by a person.
+  # The app's tag push fires the trigger above. This is for release-prep's
+  # fallback, which dispatches at a tag that ended up with no release.
   workflow_dispatch:
 
 permissions:
   contents: write
+
+# The tag push and release-prep's fallback can both reach this, so a duplicate
+# run is possible. The loser of two `gh release create` calls fails with a 422.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:

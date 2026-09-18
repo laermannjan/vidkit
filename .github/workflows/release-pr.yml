@@ -7,11 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Every step uses the app token. This scopes the unused GITHUB_TOKEN, so the job
+# carries no ambient write credential.
 permissions:
-  contents: write
-  pull-requests: write
-  # Needed to dispatch release.yml.
-  actions: write
+  contents: read
 
 concurrency:
   group: release-pr

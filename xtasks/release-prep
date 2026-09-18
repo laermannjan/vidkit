@@ -13,9 +13,9 @@ fi
 # The numeric id is what GitHub matches a noreply address against. Losing it
 # costs attribution on the release commit, which is not worth failing a release
 # for, so the lookup degrades rather than aborting.
-bot="${BOT_SLUG:-github-actions}"
+bot="${BOT_SLUG:?the workflow must pass the app slug}"
 git config user.name "${bot}[bot]"
-if bot_id="$(gh api "/users/${bot}%5Bbot%5D" --jq .id 2>/dev/null)"; then
+if bot_id="$(gh api "/users/${bot}%5Bbot%5D" --jq .id 2>/dev/null)" && [[ -n $bot_id ]]; then
 	git config user.email "${bot_id}+${bot}[bot]@users.noreply.github.com"
 else
 	echo "could not resolve ${bot}[bot]; release commits will show an unlinked author" >&2
