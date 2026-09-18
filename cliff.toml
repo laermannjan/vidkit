@@ -30,20 +30,27 @@ postprocessors = [{ pattern = '\$REPO', replace = "https://github.com/laermannja
 
 [git]
 conventional_commits = true
-filter_unconventional = true
-filter_commits = true
+# Keep everything. A type that is not user-facing still belongs in the record,
+# under Chore, so the history is complete rather than flattering.
+filter_unconventional = false
+filter_commits = false
 split_commits = false
 commit_preprocessors = [{ pattern = '\(#([0-9]+)\)$', replace = "" }]
+# Order matters: the release-prep commits are skipped before the generic chore
+# rule can group them. Types and sections are documented in AGENTS.md; the two
+# lists must agree.
 commit_parsers = [
-  { message = "^feat", group = "Features" },
-  { message = "^fix", group = "Bug fixes" },
-  { message = "^perf", group = "Performance" },
-  { message = "^refactor", group = "Refactor" },
-  { message = "^docs", group = "Documentation" },
-  { message = "^test", group = "Testing" },
-  { message = "^chore\\(release\\)", skip = true },
   { message = "^chore: release", skip = true },
-  { message = "^(chore|ci|build|style)", skip = true },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^Merge ", skip = true },
+  { message = "^feat", group = "<!-- 01 -->Features" },
+  { message = "^fix", group = "<!-- 02 -->Bug fixes" },
+  { message = "^perf", group = "<!-- 03 -->Performance" },
+  { message = "^refactor", group = "<!-- 04 -->Refactor" },
+  { message = "^docs", group = "<!-- 05 -->Documentation" },
+  { message = "^test", group = "<!-- 06 -->Testing" },
+  { message = "^[Rr]evert", group = "<!-- 07 -->Revert" },
+  { message = ".*", group = "<!-- 08 -->Chore" },
 ]
 tag_pattern = "v[0-9]*"
 sort_commits = "oldest"
