@@ -14,6 +14,8 @@ mise run typecheck  # type check alone
 dependencies; `mise` owns everything that is not a Python package. `hk` runs the
 fast checks on commit and is installed with `hk install`.
 
+Fix the cause of a failing check, rather than skipping or disabling it.
+
 ## Code Architecture
 
 vidkit downloads and processes video from embedded streams.
@@ -152,10 +154,10 @@ follow "The Elements of Style".
 Name a pull request or an issue by number and title. "#6, plan: read, write and
 validate a plan file" rather than "#6" alone.
 
-### Working with agents
+### Acting
 
-- Propose before anything outward-facing: pushing, opening a PR, creating a
-  repository, changing settings.
-- Verify. Read the file, run the command, check the API.
-- Do not claim something works without having run it.
-- Fix the cause of a failing check.
+Propose before anything outward-facing or hard to reverse: pushing, opening a pull
+request, creating a repository, changing settings.
+
+Verify instead of recalling. Read the file, run the command, check the API. Say
+plainly what you did not verify.
