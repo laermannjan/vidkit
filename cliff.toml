@@ -36,7 +36,7 @@ filter_unconventional = false
 filter_commits = false
 split_commits = false
 commit_preprocessors = [{ pattern = '(?m)\s*\(#([0-9]+)\)$', replace = "" }]
-# Order matters: the release-prep commits are skipped before the generic chore
+# Order matters: the release commits are skipped before the generic chore
 # rule can group them. Types and sections are documented in AGENTS.md; the two
 # lists must agree.
 commit_parsers = [

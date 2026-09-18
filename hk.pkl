@@ -8,7 +8,7 @@ local linters = new Mapping {
     ["ruff"] = Builtins.ruff
     ["ruff_format"] = Builtins.ruff_format
     // Both builtins match an extensionless script by its shebang, so
-    // xtasks/release-prep is covered without a glob of its own.
+    // xtasks/release is covered without a glob of its own.
     ["shellcheck"] = Builtins.shellcheck
     ["shfmt"] = Builtins.shfmt
     ["actionlint"] = Builtins.actionlint
