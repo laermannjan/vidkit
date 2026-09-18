@@ -162,4 +162,4 @@ request, creating a repository, changing settings.
 Prefer verification over recalling. Read the file, run the command, check the API.
 Say plainly what you did and did not verify.
 
-Separate what was agreed from what you are proposing.
+A remark made while exploring is not a decision. Confirm before recording it as one.
