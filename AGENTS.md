@@ -151,6 +151,15 @@ attempt, then where it breaks or what it costs, then what that forces next.
 When writing user-facing documentation, or longer prose that will persist somewhere,
 follow "The Elements of Style".
 
+State a rule once. Do not add a sentence that argues for it or makes it quotable.
+
+Say what to do. Name the wrong alternative only when it is the one someone would
+otherwise reach for.
+
+Do not state as settled anything that was not agreed. Recommend it instead.
+
+Prefer a list to a table, unless the columns earn themselves.
+
 Name a pull request or an issue by number and title. "#6, plan: read, write and
 validate a plan file" rather than "#6" alone.
 
@@ -161,3 +170,6 @@ request, creating a repository, changing settings.
 
 Verify instead of recalling. Read the file, run the command, check the API. Say
 plainly what you did not verify.
+
+When feedback says something is wrong, check whether the structure is wrong before
+rewording it.
