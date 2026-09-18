@@ -1,4 +1,4 @@
-name: pr-title
+name: lint-pr
 
 # PRs are squash-merged, so the PR title becomes the commit subject on main and
 # is what git-cliff reads. That makes the title the thing worth enforcing.
@@ -10,12 +10,13 @@ on:
 permissions: {}
 
 concurrency:
-  group: pr-title-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  title:
+  lint-title:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check pull request title
         env:

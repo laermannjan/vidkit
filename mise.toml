@@ -16,13 +16,21 @@ shfmt = "latest"
 actionlint = "latest"
 zizmor = "latest"
 
-[tasks.fmt]
-description = "Format"
-run = "ruff format ."
-
 [tasks.lint]
-description = "Lint and check formatting"
-run = ["ruff check .", "ruff format --check ."]
+description = "Lint"
+run = "ruff check ."
+
+[tasks.lint-fix]
+description = "Lint and apply fixes"
+run = "ruff check --fix ."
+
+[tasks.format]
+description = "Check formatting"
+run = "ruff format --check ."
+
+[tasks.format-fix]
+description = "Apply formatting"
+run = "ruff format ."
 
 [tasks.sync]
 description = "Install Python dependencies into .venv"
@@ -43,8 +51,8 @@ run = "uv run pytest"
 
 [tasks.check]
 description = "Everything CI runs"
-depends = ["lint", "typecheck", "test"]
+depends = ["lint", "format", "typecheck", "test"]
 
-[tasks.release-prep]
-description = "Compute the next CalVer, regenerate the changelog, refresh the release PR"
-run = "./xtasks/release-prep"
+[tasks.release]
+description = "Tag a merged release, or refresh the release pull request"
+run = "./xtasks/release"

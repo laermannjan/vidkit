@@ -1,43 +1,50 @@
 name: release
 
-# Fired by the tag that release-prep pushes. Kept separate from release-pr so a
-# failed release can be retried by re-pushing the tag.
+# Runs on every push to main and does one of two things: cuts the release the
+# release pull request just brought in, or refreshes that pull request. Nothing
+# waits on a tag push, so there is no cross-workflow handoff to lose.
 on:
   push:
-    tags: ["v*"]
-  # The app's tag push fires the trigger above. This is for release-prep's
-  # fallback, which dispatches at a tag that ended up with no release.
-  workflow_dispatch:
+    branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
-# The tag push and release-prep's fallback can both reach this, so a duplicate
-# run is possible. The loser of two `gh release create` calls fails with a 422.
 concurrency:
-  group: release-${{ github.ref }}
+  group: ${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      # Everything runs as the app rather than as GITHUB_TOKEN, so its pushes
+      # raise real events and the pull request it opens is not held for approval.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: app-token
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Narrow the token to what this job needs, so a permission the app
+          # gains for another repository is not inherited here. Workflows is
+          # required because building the release branch writes
+          # .github/workflows/* onto a branch that did not have them.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+      # This job pushes tags and the release branch, so the checkout
+      # credentials are the point here rather than an oversight.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
-          persist-credentials: false
+          token: ${{ steps.app-token.outputs.token }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          install_args: git-cliff
+          install_args: uv git-cliff
           cache: false
-      - name: Create GitHub Release
+      - run: mise run release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          # The release is already titled with the tag, so the changelog's own
-          # "## [version] - date" heading would say it twice.
-          git-cliff --strip all --latest | sed '/^## \[/d' | sed '/./,$!d' >/tmp/notes.md
-          [[ -s /tmp/notes.md ]] || echo "Release $TAG" >/tmp/notes.md
-          gh release create "$TAG" --title "$TAG" --notes-file /tmp/notes.md
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          BOT_SLUG: ${{ steps.app-token.outputs.app-slug }}

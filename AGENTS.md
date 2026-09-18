@@ -3,11 +3,13 @@
 ## Development Commands
 
 ```sh
-mise run check      # lint, typecheck, test - everything CI runs
-mise run fmt        # apply formatting
-mise run test       # test suite alone
-mise run lint       # lint and formatting check alone
-mise run typecheck  # type check alone
+mise run check       # lint, format, typecheck, test - everything CI runs
+mise run lint        # lint alone
+mise run format      # formatting check alone
+mise run typecheck   # type check alone
+mise run test        # test suite alone
+mise run lint-fix    # lint and apply fixes
+mise run format-fix  # apply formatting
 ```
 
 `mise install` provides the tooling. `uv` owns the Python interpreter and
