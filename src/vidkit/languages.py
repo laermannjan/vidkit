@@ -35,10 +35,12 @@ class MkvmergeUnavailable(RuntimeError):
 @cache
 def tag_problem(tag: str) -> str | None:
     """What mkvmerge objects to in `tag`, or None when it accepts it."""
-    # The tag is a separate argument and mkvmerge has no --opt=value form, so a value
-    # starting with a dash would be read as an option rather than judged.
-    if tag.startswith("-"):
-        return "a language tag cannot start with '-'"
+    # The tag goes to mkvmerge as its own argument, and mkvmerge has no --opt=value
+    # form to pin it down as a value. A tag starting with '-' would be read as an
+    # option; one starting with '@' as an options file, which mkvmerge would open and
+    # obey. Neither can be a language tag, so neither is handed over.
+    if tag.startswith(("-", "@")):
+        return "a language tag cannot start with '-' or '@'"
     return _verdict(tag, _probe(tag))
 
 

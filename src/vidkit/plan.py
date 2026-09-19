@@ -13,6 +13,9 @@ The file is capture's only state. process never writes it.
 
 from __future__ import annotations
 
+import os
+import tempfile
+import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -53,7 +56,10 @@ class PlanError(ValueError):
 
 
 def _normalise(value: str) -> str:
-    return " ".join(value.split())
+    # Composition as well as whitespace. "Café" and "Café" are one show to a
+    # reader and to a filesystem, but two strings to casefold, so the spelling check
+    # would never see them as the same and the plan would file two shows.
+    return unicodedata.normalize("NFC", " ".join(value.split()))
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,11 +174,21 @@ def read(path: Path) -> Plan:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return Plan()
+    except UnicodeDecodeError as exc:
+        raise PlanError(f"{path} is not utf-8: {exc}") from exc
     return parse(text)
 
 
 def write(path: Path, plan: Plan) -> None:
-    path.write_text(format(plan), encoding="utf-8", newline="\n")
+    # Never in place. The plan is capture's only state, and truncating it to rewrite it
+    # means a crash between the first byte and the last leaves nothing to resume from.
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as file:
+            file.write(format(plan))
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 def _check_header(header: Sequence[str]) -> None:
@@ -208,7 +224,7 @@ class Severity(StrEnum):
 class Problem:
     severity: Severity
     message: str
-    # Indices into Plan.sources. The line in the file is the index plus two.
+    # Indices into Plan.sources, not line numbers: a plan may hold blank lines.
     rows: tuple[int, ...] = ()
 
 
@@ -241,7 +257,16 @@ def _language_problems(plan: Plan, lang_problem: LangProblem) -> list[Problem]:
             tags.setdefault(source.lang, []).append(row)
     problems = []
     for tag, rows in tags.items():
-        why = lang_problem(tag)
+        try:
+            why = lang_problem(tag)
+        except languages.MkvmergeUnavailable as exc:
+            # capture validates on every edit, so a missing mkvmerge has to arrive as a
+            # problem in the list rather than as a traceback out of it.
+            everywhere = tuple(sorted(row for where in tags.values() for row in where))
+            return [
+                *problems,
+                Problem(Severity.ERROR, f"no language could be checked: {exc}", everywhere),
+            ]
         if why is not None:
             problems.append(
                 Problem(

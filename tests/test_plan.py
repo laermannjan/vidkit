@@ -1,5 +1,8 @@
+import unicodedata
+
 import pytest
 
+from vidkit.languages import MkvmergeUnavailable
 from vidkit.plan import (
     COLUMNS,
     Plan,
@@ -125,6 +128,36 @@ def test_write_then_read(tmp_path):
     path = tmp_path / "plan.tsv"
     write(path, AWKWARD)
     assert read(path) == AWKWARD
+
+
+def test_write_replaces_the_file_and_leaves_nothing_behind(tmp_path):
+    path = tmp_path / "plan.tsv"
+    path.write_text("stale\n")
+    write(path, AWKWARD)
+    assert read(path) == AWKWARD
+    assert [p.name for p in tmp_path.iterdir()] == ["plan.tsv"]
+
+
+def test_a_file_that_is_not_utf_8_is_a_plan_error(tmp_path):
+    path = tmp_path / "plan.tsv"
+    path.write_bytes("show\n".encode("latin-1") + b"\xe9\n")
+    with pytest.raises(PlanError, match="utf-8"):
+        read(path)
+
+
+def test_the_same_name_composed_two_ways_is_one_show():
+    composed = unicodedata.normalize("NFC", "Caf\u00e9")
+    decomposed = unicodedata.normalize("NFD", "Caf\u00e9")
+    assert composed != decomposed
+    assert Source(show=decomposed).show == composed
+    plan = Plan(
+        (
+            source(show=composed, season="2026", number="1", lang="de"),
+            source(show=decomposed, season="2026", number="2", lang="de"),
+        )
+    )
+    assert {video.show for video in plan.videos} == {composed}
+    assert problems(plan) == []
 
 
 # --- grouping ---------------------------------------------------------------------
@@ -270,6 +303,17 @@ def test_a_show_spelled_two_ways_warns():
 def test_a_missing_referer_warns():
     plan = Plan((Source(show="Foo", number="1", lang="de", url="u"),))
     assert [(p.severity, p.rows) for p in problems(plan)] == [(Severity.WARNING, (0,))]
+
+
+def test_a_missing_mkvmerge_is_a_problem_rather_than_a_traceback():
+    def absent(tag: str) -> str | None:
+        raise MkvmergeUnavailable("could not run mkvmerge")
+
+    plan = Plan((Source(show="Foo", number="1", lang="de", referer="r"),))
+    found = validate(plan, lang_problem=absent)
+    assert [p.message for p in found if "no language could be checked" in p.message]
+    # The rest of the plan is still reported, which is the point of the function.
+    assert [p.message for p in found if "no url" in p.message]
 
 
 def test_every_problem_is_reported_and_errors_come_first():

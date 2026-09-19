@@ -32,8 +32,11 @@ def test_output_it_cannot_read_is_not_silently_an_answer():
         _verdict("de", "mkvmerge: command not found")
 
 
-def test_a_tag_starting_with_a_dash_is_never_handed_over():
-    assert tag_problem("-o") is not None
+@pytest.mark.parametrize("tag", ["-o", "@options.json"])
+def test_a_tag_mkvmerge_would_read_as_an_argument_is_never_handed_over(tag):
+    # '@file' makes mkvmerge open that file and obey the options in it, so a tag
+    # shaped like one must not reach the command line at all.
+    assert tag_problem(tag) is not None
 
 
 @needs_mkvmerge
