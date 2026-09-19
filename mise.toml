@@ -1,6 +1,6 @@
 # Tools this repo is developed with. None of them is a runtime requirement:
 # `vidkit doctor` names what is missing and how to install it, and never assumes
-# mise is present. See SPEC.md, External tools.
+# mise is present. See #7, doctor: check external tools and config.
 #
 # The split: uv owns Python and Python dependencies, so the interpreter is
 # pinned once in .python-version and not repeated here. mise owns everything

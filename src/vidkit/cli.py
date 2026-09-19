@@ -1,6 +1,6 @@
 """Command line entry point.
 
-Commands are added as the build order in SPEC.md reaches them. Today only
+Commands are added as the MVP milestone reaches them. Today only
 `--version` exists, so the packaging and the release machinery have something
 real to prove themselves against.
 """
