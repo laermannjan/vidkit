@@ -36,10 +36,9 @@ def problems(plan: Plan):
 AWKWARD = Plan(
     (
         Source(
-            show='The "Foo" Show',
-            season="2026",
-            day="1",
-            number="2",
+            series='The "Foo" Course',
+            year="2026",
+            number="0302",
             title="Foo, Bar & 'Baz' — 50% done",
             artist="Jane Roe",
             lang="pt-BR",
@@ -78,6 +77,18 @@ def test_a_tab_in_a_value_cannot_split_a_row():
     assert plan.sources[0].title == "Foo Bar"
 
 
+@pytest.mark.parametrize(
+    ("typed", "stored"),
+    [("3", "03"), ("03", "03"), ("0003", "03"), ("302", "0302"), ("0302", "0302"), ("", "")],
+)
+def test_zero_padding_is_not_information(typed, stored):
+    assert Source(number=typed).number == stored
+
+
+def test_a_number_that_is_not_a_count_is_left_alone():
+    assert Source(number="pilot").number == "pilot"
+
+
 def test_the_default_mark_survives_the_trip():
     plan = Plan((source(lang="de", default=True), source(lang="en")))
     read_back = parse(format(plan))
@@ -85,8 +96,8 @@ def test_the_default_mark_survives_the_trip():
 
 
 def test_columns_may_be_in_any_order_and_come_back_canonical():
-    text = "url\tshow\tseason\tday\tnumber\ttitle\tartist\tlang\tdefault\treferer\n"
-    text += "u\tFoo\t2026\t\t1\tT\tA\tde\tx\tr\n"
+    text = "url\tseries\tyear\tnumber\ttitle\tartist\tlang\tdefault\treferer\n"
+    text += "u\tFoo\t2026\t1\tT\tA\tde\tx\tr\n"
     plan = parse(text)
     assert plan.sources[0].url == "u"
     assert plan.sources[0].default is True
@@ -96,9 +107,9 @@ def test_columns_may_be_in_any_order_and_come_back_canonical():
 @pytest.mark.parametrize(
     ("text", "said"),
     [
-        ("show\tseason\n", "missing"),
+        ("series\tyear\n", "missing"),
         ("\t".join((*COLUMNS, "extra")) + "\n", "unknown"),
-        ("\t".join((*COLUMNS[:-1], "show")) + "\n", "twice"),
+        ("\t".join((*COLUMNS[:-1], "series")) + "\n", "twice"),
     ],
 )
 def test_a_header_that_is_not_the_plan_columns_is_refused(text, said):
@@ -140,23 +151,23 @@ def test_write_replaces_the_file_and_leaves_nothing_behind(tmp_path):
 
 def test_a_file_that_is_not_utf_8_is_a_plan_error(tmp_path):
     path = tmp_path / "plan.tsv"
-    path.write_bytes("show\n".encode("latin-1") + b"\xe9\n")
+    path.write_bytes("series\n".encode("latin-1") + b"\xe9\n")
     with pytest.raises(PlanError, match="utf-8"):
         read(path)
 
 
-def test_the_same_name_composed_two_ways_is_one_show():
-    composed = unicodedata.normalize("NFC", "Caf\u00e9")
-    decomposed = unicodedata.normalize("NFD", "Caf\u00e9")
+def test_the_same_name_composed_two_ways_is_one_series():
+    composed = unicodedata.normalize("NFC", "Café")
+    decomposed = unicodedata.normalize("NFD", "Café")
     assert composed != decomposed
-    assert Source(show=decomposed).show == composed
+    assert Source(series=decomposed).series == composed
     plan = Plan(
         (
-            source(show=composed, season="2026", number="1", lang="de"),
-            source(show=decomposed, season="2026", number="2", lang="de"),
+            source(series=composed, year="2026", number="1", lang="de"),
+            source(series=decomposed, year="2026", number="2", lang="de"),
         )
     )
-    assert {video.show for video in plan.videos} == {composed}
+    assert {video.series for video in plan.videos} == {composed}
     assert problems(plan) == []
 
 
@@ -166,9 +177,9 @@ def test_the_same_name_composed_two_ways_is_one_show():
 def test_rows_sharing_an_identity_are_one_video():
     plan = Plan(
         (
-            source(show="Foo", season="2026", number="1", title="One", lang="de"),
-            source(show="Foo", season="2026", number="2", title="Two", lang="de"),
-            source(show="Foo", season="2026", number="1", title="One", lang="en"),
+            source(series="Foo", year="2026", number="1", title="One", lang="de"),
+            source(series="Foo", year="2026", number="2", title="Two", lang="de"),
+            source(series="Foo", year="2026", number="1", title="One", lang="en"),
         )
     )
     videos = plan.videos
@@ -178,23 +189,57 @@ def test_rows_sharing_an_identity_are_one_video():
     assert videos[0].title == "One"
 
 
-def test_an_item_field_is_not_part_of_the_identity():
-    # Two rows that agree on (show, season, day, number) are one video even when a
-    # shared field was edited on one row only. That edit is a problem, not a split.
+def test_a_number_written_two_ways_is_one_video():
     plan = Plan(
         (
-            source(show="Foo", season="2026", number="1", title="One", lang="de"),
-            source(show="Foo", season="2026", number="1", title="Uno", lang="en"),
+            source(series="Foo", year="2026", number="3", lang="de"),
+            source(series="Foo", year="2026", number="03", lang="en"),
         )
     )
     assert len(plan.videos) == 1
 
 
-def test_day_and_number_tell_videos_apart():
+def test_an_item_field_is_not_part_of_the_identity():
+    # Two rows that name one video stay one video even when a shared field was edited
+    # on one row only. That edit is a problem, not a split.
     plan = Plan(
         (
-            source(show="Foo", season="2026", day="1", number="1"),
-            source(show="Foo", season="2026", day="2", number="1"),
+            source(series="Foo", year="2026", number="1", title="One", lang="de"),
+            source(series="Foo", year="2026", number="1", title="Uno", lang="en"),
+        )
+    )
+    assert len(plan.videos) == 1
+
+
+def test_two_standalone_videos_are_not_one():
+    # Nothing but the title tells these apart, and nothing but the title has to:
+    # they file as "Talk One (2023)" and "Talk Two (2023)".
+    plan = Plan(
+        (
+            source(year="2023", title="Talk One", lang="de"),
+            source(year="2023", title="Talk Two", lang="de"),
+        )
+    )
+    assert len(plan.videos) == 2
+    assert problems(plan) == []
+
+
+def test_one_standalone_video_in_two_languages_is_one_video():
+    plan = Plan(
+        (
+            source(year="2023", title="A Talk About Bar", lang="de", default=True),
+            source(year="2023", title="A Talk About Bar", lang="en"),
+        )
+    )
+    assert len(plan.videos) == 1
+    assert problems(plan) == []
+
+
+def test_the_same_talk_in_two_years_is_two_videos():
+    plan = Plan(
+        (
+            source(year="2024", title="Keynote", lang="de"),
+            source(year="2025", title="Keynote", lang="de"),
         )
     )
     assert len(plan.videos) == 2
@@ -204,7 +249,7 @@ def test_day_and_number_tell_videos_apart():
 
 
 def test_a_clean_plan_has_nothing_to_say():
-    assert problems(Plan((source(show="Foo", season="2026", number="1", lang="de"),))) == []
+    assert problems(Plan((source(series="Foo", year="2026", number="1", lang="de"),))) == []
 
 
 def test_a_language_mkvmerge_refuses_is_an_error():
@@ -216,8 +261,8 @@ def test_a_language_mkvmerge_refuses_is_an_error():
 def test_one_bad_language_on_many_rows_is_one_problem():
     plan = Plan(
         (
-            source(show="A", number="1", lang="klingon"),
-            source(show="B", number="1", lang="klingon"),
+            source(series="A", number="1", lang="klingon"),
+            source(series="B", number="1", lang="klingon"),
         )
     )
     found = [p for p in problems(plan) if "klingon" in p.message]
@@ -226,15 +271,15 @@ def test_one_bad_language_on_many_rows_is_one_problem():
 
 
 def test_a_row_with_no_url_is_an_error():
-    plan = Plan((Source(show="Foo", number="1", lang="de", referer="r"),))
+    plan = Plan((Source(series="Foo", number="1", lang="de", referer="r"),))
     assert [(p.severity, p.rows) for p in problems(plan)] == [(Severity.ERROR, (0,))]
 
 
 def test_sources_of_one_video_that_disagree_are_an_error():
     plan = Plan(
         (
-            source(show="Foo", season="2026", number="1", title="One", lang="de"),
-            source(show="Foo", season="2026", number="1", title="Uno", lang="en"),
+            source(series="Foo", year="2026", number="1", title="One", lang="de"),
+            source(series="Foo", year="2026", number="1", title="Uno", lang="en"),
         )
     )
     found = [p for p in problems(plan) if "title" in p.message]
@@ -245,8 +290,8 @@ def test_sources_of_one_video_that_disagree_are_an_error():
 def test_two_sources_of_one_video_in_one_language_are_an_error():
     plan = Plan(
         (
-            source(show="Foo", season="2026", number="1", lang="de"),
-            source(show="Foo", season="2026", number="1", lang="DE"),
+            source(series="Foo", year="2026", number="1", lang="de"),
+            source(series="Foo", year="2026", number="1", lang="DE"),
         )
     )
     found = [p for p in problems(plan) if "share" in p.message]
@@ -257,8 +302,8 @@ def test_two_sources_of_one_video_in_one_language_are_an_error():
 def test_two_sources_of_one_video_with_no_language_are_an_error():
     plan = Plan(
         (
-            source(show="Foo", season="2026", number="1"),
-            source(show="Foo", season="2026", number="1"),
+            source(series="Foo", year="2026", number="1"),
+            source(series="Foo", year="2026", number="1"),
         )
     )
     assert any(p.severity is Severity.ERROR and "no language" in p.message for p in problems(plan))
@@ -267,8 +312,8 @@ def test_two_sources_of_one_video_with_no_language_are_an_error():
 def test_a_video_with_two_defaults_warns():
     plan = Plan(
         (
-            source(show="Foo", number="1", lang="de", default=True),
-            source(show="Foo", number="1", lang="en", default=True),
+            source(series="Foo", number="1", lang="de", default=True),
+            source(series="Foo", number="1", lang="en", default=True),
         )
     )
     found = [p for p in problems(plan) if "default" in p.message]
@@ -277,22 +322,22 @@ def test_a_video_with_two_defaults_warns():
 
 
 def test_a_video_with_no_default_warns_only_when_there_is_a_choice():
-    lone = Plan((source(show="Foo", number="1", lang="de"),))
+    lone = Plan((source(series="Foo", number="1", lang="de"),))
     assert [p for p in problems(lone) if "default" in p.message] == []
     pair = Plan(
         (
-            source(show="Foo", number="1", lang="de"),
-            source(show="Foo", number="1", lang="en"),
+            source(series="Foo", number="1", lang="de"),
+            source(series="Foo", number="1", lang="en"),
         )
     )
     assert [p.severity for p in problems(pair) if "default" in p.message] == [Severity.WARNING]
 
 
-def test_a_show_spelled_two_ways_warns():
+def test_a_series_spelled_two_ways_warns():
     plan = Plan(
         (
-            source(show="Foo Show", number="1", lang="de"),
-            source(show="foo show", number="2", lang="de"),
+            source(series="Foo Course", number="1", lang="de"),
+            source(series="foo course", number="2", lang="de"),
         )
     )
     found = [p for p in problems(plan) if "spelled" in p.message]
@@ -301,7 +346,7 @@ def test_a_show_spelled_two_ways_warns():
 
 
 def test_a_missing_referer_warns():
-    plan = Plan((Source(show="Foo", number="1", lang="de", url="u"),))
+    plan = Plan((Source(series="Foo", number="1", lang="de", url="u"),))
     assert [(p.severity, p.rows) for p in problems(plan)] == [(Severity.WARNING, (0,))]
 
 
@@ -309,7 +354,7 @@ def test_a_missing_mkvmerge_is_a_problem_rather_than_a_traceback():
     def absent(tag: str) -> str | None:
         raise MkvmergeUnavailable("could not run mkvmerge")
 
-    plan = Plan((Source(show="Foo", number="1", lang="de", referer="r"),))
+    plan = Plan((Source(series="Foo", number="1", lang="de", referer="r"),))
     found = validate(plan, lang_problem=absent)
     assert [p.message for p in found if "no language could be checked" in p.message]
     # The rest of the plan is still reported, which is the point of the function.
@@ -319,12 +364,12 @@ def test_a_missing_mkvmerge_is_a_problem_rather_than_a_traceback():
 def test_every_problem_is_reported_and_errors_come_first():
     plan = Plan(
         (
-            Source(show="Foo", number="1", lang="klingon"),
-            Source(show="foo", number="2", lang="de", url="u"),
+            Source(series="Foo", number="1", lang="klingon"),
+            Source(series="foo", number="2", lang="de", url="u"),
         )
     )
     found = problems(plan)
     severities = [p.severity for p in found]
     assert severities == sorted(severities, key=lambda s: s is Severity.WARNING)
     assert severities.count(Severity.ERROR) == 2  # the language, and the row with no url
-    assert severities.count(Severity.WARNING) == 3  # the show spelling, and two missing referers
+    assert severities.count(Severity.WARNING) == 3  # the series spelling, and two referers

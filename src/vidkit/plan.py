@@ -5,8 +5,9 @@ its whitespace normalised, so none can hold a tab and splitting on tabs is exact
 quoting dialect would undo that: a title with a quote character in it would come back
 spelled differently from the one that went in.
 
-Rows that agree on (show, season, day, number) are one video, and their sources become
-its audio tracks. A group of one is a plain download.
+Rows that name the same video are one video, and their sources become its audio tracks.
+A group of one is a plain download. What names a video is what its output path is built
+from: a series by (series, year, number), a standalone item by its year and title.
 
 The file is capture's only state. process never writes it.
 """
@@ -24,9 +25,8 @@ from pathlib import Path
 from vidkit import languages
 
 COLUMNS = (
-    "show",
-    "season",
-    "day",
+    "series",
+    "year",
     "number",
     "title",
     "artist",
@@ -36,19 +36,23 @@ COLUMNS = (
     "referer",
 )
 
-# What makes two rows one video.
-IDENTITY_FIELDS = ("show", "season", "day", "number")
 # Describe the video, so every source of it carries the same values.
-ITEM_FIELDS = (*IDENTITY_FIELDS, "title", "artist")
+ITEM_FIELDS = ("series", "year", "number", "title", "artist")
 # Describe one source, and are edited on their own.
 SOURCE_FIELDS = ("lang", "default", "url", "referer")
+
+# A video is one output file, so what tells two videos apart is what their paths are
+# built from, and nothing else. An empty series is a standalone item, filed as
+# "Title (year)", so its title identifies it where a series uses its number.
+SERIES_IDENTITY = ("series", "year", "number")
+STANDALONE_IDENTITY = ("series", "year", "title")
 
 # Written into the default column. Anything non-empty reads back the same way.
 DEFAULT_MARK = "x"
 
 _TEXT_FIELDS = tuple(name for name in COLUMNS if name != "default")
 
-Identity = tuple[str, str, str, str]
+Identity = tuple[str, ...]
 
 
 class PlanError(ValueError):
@@ -56,19 +60,28 @@ class PlanError(ValueError):
 
 
 def _normalise(value: str) -> str:
-    # Composition as well as whitespace. "Café" and "Café" are one show to a
-    # reader and to a filesystem, but two strings to casefold, so the spelling check
-    # would never see them as the same and the plan would file two shows.
+    # Composition as well as whitespace. "Café" and "Café" are one series to a reader
+    # and to a filesystem, but two strings to casefold, so the spelling check would
+    # never see them as the same and the plan would file two series.
     return unicodedata.normalize("NFC", " ".join(value.split()))
+
+
+def _pad(value: str) -> str:
+    # Zero padding is not information: 3, 03 and 0003 are one video, and left as typed
+    # they would be three of them with nothing said about it. Padded rather than
+    # stripped bare, so a number written as {ddnn} still reads as a day and a counter.
+    if not value.isdigit():
+        return value
+    number = int(value)
+    return f"{number:04d}" if number >= 100 else f"{number:02d}"
 
 
 @dataclass(frozen=True, slots=True)
 class Source:
     """One row: one stream URL and everything said about it."""
 
-    show: str = ""
-    season: str = ""
-    day: str = ""
+    series: str = ""
+    year: str = ""
     number: str = ""
     title: str = ""
     artist: str = ""
@@ -83,19 +96,19 @@ class Source:
         # out and read back is the same source.
         for name in _TEXT_FIELDS:
             object.__setattr__(self, name, _normalise(getattr(self, name)))
+        object.__setattr__(self, "number", _pad(self.number))
 
     @property
     def identity(self) -> Identity:
-        return (self.show, self.season, self.day, self.number)
+        return tuple(getattr(self, name) for name in _identity_fields(self.series))
 
 
 @dataclass(frozen=True, slots=True)
 class Video:
     """One output file and the sources that feed it."""
 
-    show: str
-    season: str
-    day: str
+    series: str
+    year: str
     number: str
     title: str
     artist: str
@@ -103,7 +116,7 @@ class Video:
 
     @property
     def identity(self) -> Identity:
-        return (self.show, self.season, self.day, self.number)
+        return tuple(getattr(self, name) for name in _identity_fields(self.series))
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,9 +131,8 @@ class Plan:
             head = self.sources[rows[0]]
             videos.append(
                 Video(
-                    show=head.show,
-                    season=head.season,
-                    day=head.day,
+                    series=head.series,
+                    year=head.year,
                     number=head.number,
                     title=head.title,
                     artist=head.artist,
@@ -128,6 +140,10 @@ class Plan:
                 )
             )
         return tuple(videos)
+
+
+def _identity_fields(series: str) -> tuple[str, ...]:
+    return SERIES_IDENTITY if series else STANDALONE_IDENTITY
 
 
 def _groups(sources: Sequence[Source]) -> dict[Identity, list[int]]:
@@ -142,7 +158,7 @@ def _groups(sources: Sequence[Source]) -> dict[Identity, list[int]]:
 
 
 def parse(text: str) -> Plan:
-    # Only a truly empty line is skipped. A row whose every field is empty is nine
+    # Only a truly empty line is skipped. A row whose every field is empty is eight
     # tabs, which a blank-line test that strips whitespace would throw away.
     lines = [(n, line) for n, line in enumerate(text.splitlines(), start=1) if line]
     if not lines:
@@ -243,7 +259,7 @@ def validate(plan: Plan, *, lang_problem: LangProblem = languages.tag_problem) -
         *_language_problems(plan, lang_problem),
         *_row_problems(plan),
         *_video_problems(plan),
-        *_show_problems(plan),
+        *_series_problems(plan),
     ]
     return sorted(problems, key=lambda problem: _ORDER[problem.severity])
 
@@ -292,9 +308,9 @@ def _row_problems(plan: Plan) -> list[Problem]:
 
 def _video_problems(plan: Plan) -> list[Problem]:
     problems = []
-    for identity, rows in _groups(plan.sources).items():
-        label = _label(identity)
+    for rows in _groups(plan.sources).values():
         sources = [plan.sources[row] for row in rows]
+        label = _label(sources[0])
         problems += _disagreements(label, rows, sources)
         problems += _duplicate_languages(label, rows, sources)
         problems += _default_problems(label, rows, sources)
@@ -304,7 +320,8 @@ def _video_problems(plan: Plan) -> list[Problem]:
 def _disagreements(label: str, rows: list[int], sources: list[Source]) -> list[Problem]:
     problems = []
     # The identity fields are what grouped these rows, so only the rest can differ.
-    for name in (name for name in ITEM_FIELDS if name not in IDENTITY_FIELDS):
+    identity = _identity_fields(sources[0].series)
+    for name in (name for name in ITEM_FIELDS if name not in identity):
         spellings = {getattr(source, name) for source in sources}
         if len(spellings) > 1:
             said = ", ".join(repr(value) for value in sorted(spellings))
@@ -359,36 +376,38 @@ def _default_problems(label: str, rows: list[int], sources: list[Source]) -> lis
     return []
 
 
-def _show_problems(plan: Plan) -> list[Problem]:
-    # Whitespace variants cannot reach this far, since every value is normalised on
-    # construction. Only case can still split one show in two.
-    shows: dict[str, dict[str, list[int]]] = {}
+def _series_problems(plan: Plan) -> list[Problem]:
+    # Whitespace and composition variants cannot reach this far, since every value is
+    # normalised on construction. Only case can still split one series in two.
+    names: dict[str, dict[str, list[int]]] = {}
     for row, source in enumerate(plan.sources):
-        if source.show:
-            shows.setdefault(source.show.casefold(), {}).setdefault(source.show, []).append(row)
+        if not source.series:
+            continue
+        spellings = names.setdefault(source.series.casefold(), {})
+        spellings.setdefault(source.series, []).append(row)
     problems = []
-    for spellings in shows.values():
+    for spellings in names.values():
         if len(spellings) > 1:
             rows = sorted(row for where in spellings.values() for row in where)
             said = ", ".join(repr(value) for value in sorted(spellings))
             problems.append(
                 Problem(
                     Severity.WARNING,
-                    f"one show is spelled {len(spellings)} ways and files as "
-                    f"{len(spellings)} shows: {said}",
+                    f"one series is spelled {len(spellings)} ways and files as "
+                    f"{len(spellings)} series: {said}",
                     tuple(rows),
                 )
             )
     return problems
 
 
-def _label(identity: Identity) -> str:
-    show, season, day, number = identity
-    said = [show or "(standalone)"]
-    if season:
-        said.append(f"S{season}")
-    if day:
-        said.append(f"D{day}")
-    if number:
-        said.append(f"E{number}")
+def _label(source: Source) -> str:
+    title = source.title or "(untitled)"
+    if not source.series:
+        return f"{title} ({source.year})" if source.year else title
+    said = [source.series]
+    if source.year:
+        said.append(f"S{source.year}")
+    if source.number:
+        said.append(f"E{source.number}")
     return " ".join(said)
