@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026.9.3](https://github.com/laermannjan/vidkit/compare/v2026.9.2..v2026.9.3) - 2026-09-19
+
+### 🚀 Features
+
+- **(plan)** read, write and validate a plan file in [#34](https://github.com/laermannjan/vidkit/pull/34)
+
+### 📚 Documentation
+
+- drop the references to the dissolved SPEC.md in [#35](https://github.com/laermannjan/vidkit/pull/35)
+
 ## [2026.9.2](https://github.com/laermannjan/vidkit/compare/v2026.9.1..v2026.9.2) - 2026-09-18
 
 ### ⚙️ Chore
