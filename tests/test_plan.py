@@ -1,3 +1,4 @@
+import os
 import unicodedata
 
 import pytest
@@ -89,6 +90,24 @@ def test_a_number_that_is_not_a_count_is_left_alone():
     assert Source(number="pilot").number == "pilot"
 
 
+@pytest.mark.parametrize("typed", ["\u00b2", "\u2460", "\u0663", "\uff11\uff12"])
+def test_a_digit_that_is_not_an_ascii_digit_is_left_alone(typed):
+    # str.isdigit() takes all of these. int() refuses the first two and would rewrite
+    # the others into ASCII, so neither may reach it.
+    assert Source(number=typed).number == typed
+
+
+def test_a_byte_order_mark_does_not_ride_into_the_first_column():
+    plan = Plan((source(title="T", lang="de"),))
+    assert parse("\ufeff" + format(plan)) == plan
+
+
+def test_a_short_row_says_what_probably_did_it():
+    text = "\t".join(COLUMNS) + "\n" + "\t".join(["a"] * (len(COLUMNS) - 1)) + "\n"
+    with pytest.raises(PlanError, match="trims trailing whitespace"):
+        parse(text)
+
+
 def test_the_default_mark_survives_the_trip():
     plan = Plan((source(lang="de", default=True), source(lang="en")))
     read_back = parse(format(plan))
@@ -147,6 +166,22 @@ def test_write_replaces_the_file_and_leaves_nothing_behind(tmp_path):
     write(path, AWKWARD)
     assert read(path) == AWKWARD
     assert [p.name for p in tmp_path.iterdir()] == ["plan.tsv"]
+
+
+def test_write_keeps_the_mode_the_plan_already_had(tmp_path):
+    path = tmp_path / "plan.tsv"
+    path.write_text("stale\n")
+    path.chmod(0o644)
+    write(path, AWKWARD)
+    assert path.stat().st_mode & 0o777 == 0o644
+
+
+def test_a_plan_written_for_the_first_time_is_not_owner_only(tmp_path):
+    umask = os.umask(0)
+    os.umask(umask)
+    path = tmp_path / "plan.tsv"
+    write(path, AWKWARD)
+    assert path.stat().st_mode & 0o777 == 0o666 & ~umask
 
 
 def test_a_file_that_is_not_utf_8_is_a_plan_error(tmp_path):
@@ -248,14 +283,40 @@ def test_the_same_talk_in_two_years_is_two_videos():
 # --- validation -------------------------------------------------------------------
 
 
+def test_a_standalone_video_with_no_title_cannot_be_told_from_another():
+    # Two half-filled rows used to share one identity and merge into a single video
+    # with two audio tracks, reported as nothing at all.
+    plan = Plan(
+        (
+            source(lang="de"),
+            source(lang="en"),
+        )
+    )
+    assert len(plan.videos) == 1  # they still merge; the point is that it is now said
+    found = [p for p in problems(plan) if "no title" in p.message]
+    assert [(p.severity, p.rows) for p in found] == [(Severity.ERROR, (0, 1))]
+
+
+def test_a_series_video_with_no_number_cannot_be_told_from_another():
+    plan = Plan(
+        (
+            source(series="Foo", year="2026", title="One", lang="de"),
+            source(series="Foo", year="2026", title="Two", lang="en"),
+        )
+    )
+    found = [p for p in problems(plan) if "no number" in p.message]
+    assert [(p.severity, p.rows) for p in found] == [(Severity.ERROR, (0, 1))]
+
+
 def test_a_clean_plan_has_nothing_to_say():
     assert problems(Plan((source(series="Foo", year="2026", number="1", lang="de"),))) == []
 
 
 def test_a_language_mkvmerge_refuses_is_an_error():
-    found = problems(Plan((source(lang="klingon"),)))
+    found = [
+        p for p in problems(Plan((source(title="T", lang="klingon"),))) if "klingon" in p.message
+    ]
     assert [p.severity for p in found] == [Severity.ERROR]
-    assert "klingon" in found[0].message
 
 
 def test_one_bad_language_on_many_rows_is_one_problem():

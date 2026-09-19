@@ -45,11 +45,14 @@ def tag_problem(tag: str) -> str | None:
 
 
 def _verdict(tag: str, output: str) -> str | None:
-    if _PARSED in output:
-        return None
+    # The refusal before the acceptance: mkvmerge echoes the tag back in a refusal, so
+    # a tag that itself contains the acceptance phrase would otherwise read as valid.
+    # The acceptance never echoes the tag, so it cannot misfire the other way.
     if _INVALID in output:
         _, _, reason = output.partition(_REASON)
         return reason.strip() or "not a language tag"
+    if _PARSED in output:
+        return None
     raise MkvmergeUnavailable(f"mkvmerge said something unexpected about {tag!r}: {output.strip()}")
 
 

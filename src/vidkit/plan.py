@@ -70,7 +70,11 @@ def _pad(value: str) -> str:
     # Zero padding is not information: 3, 03 and 0003 are one video, and left as typed
     # they would be three of them with nothing said about it. Padded rather than
     # stripped bare, so a number written as {ddnn} still reads as a day and a counter.
-    if not value.isdigit():
+    # ASCII digits only. str.isdigit() is true for the superscripts and the circled
+    # forms, which int() then refuses, and true for the other decimal scripts, which
+    # int() accepts and would quietly rewrite as ASCII. Neither is a counting number
+    # anyone typed on purpose, so both are left exactly as written.
+    if not (value.isascii() and value.isdigit()):
         return value
     number = int(value)
     return f"{number:04d}" if number >= 100 else f"{number:02d}"
@@ -158,6 +162,9 @@ def _groups(sources: Sequence[Source]) -> dict[Identity, list[int]]:
 
 
 def parse(text: str) -> Plan:
+    # A byte order mark survives utf-8 decoding and would otherwise ride into the first
+    # header name, so the header reads as unknown and the column it names as missing.
+    text = text.removeprefix("\ufeff")
     # Only a truly empty line is skipped. A row whose every field is empty is eight
     # tabs, which a blank-line test that strips whitespace would throw away.
     lines = [(n, line) for n, line in enumerate(text.splitlines(), start=1) if line]
@@ -169,9 +176,16 @@ def parse(text: str) -> Plan:
     for number, line in lines[1:]:
         cells = line.split("\t")
         if len(cells) != len(header):
-            raise PlanError(
-                f"line {number} has {len(cells)} fields where the header names {len(header)}"
-            )
+            said = f"line {number} has {len(cells)} fields where the header names {len(header)}"
+            if len(cells) < len(header):
+                # Loud and recoverable beats padding the row out: a tab deleted between
+                # two values would shift every value after it into the wrong column, and
+                # padding the tail would accept that silently.
+                said += (
+                    "; an editor that trims trailing whitespace drops the tab "
+                    "of an empty last column"
+                )
+            raise PlanError(said)
         values = dict(zip(header, cells, strict=True))
         marked = bool(values.pop("default").strip())
         sources.append(Source(default=marked, **values))
@@ -202,9 +216,23 @@ def write(path: Path, plan: Plan) -> None:
     try:
         with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as file:
             file.write(format(plan))
+            file.flush()
+            os.fsync(file.fileno())
+        _carry_mode(path, temporary)
         os.replace(temporary, path)
     finally:
         Path(temporary).unlink(missing_ok=True)
+
+
+def _carry_mode(path: Path, temporary: str) -> None:
+    # mkstemp creates 0600 and os.replace carries the temporary file's mode onto the
+    # plan, so saving would narrow a file the user had made readable by anyone else.
+    try:
+        os.chmod(temporary, path.stat().st_mode & 0o777)
+    except FileNotFoundError:
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(temporary, 0o666 & ~umask)
 
 
 def _check_header(header: Sequence[str]) -> None:
@@ -311,10 +339,27 @@ def _video_problems(plan: Plan) -> list[Problem]:
     for rows in _groups(plan.sources).values():
         sources = [plan.sources[row] for row in rows]
         label = _label(sources[0])
+        problems += _unidentified(label, rows, sources)
         problems += _disagreements(label, rows, sources)
         problems += _duplicate_languages(label, rows, sources)
         problems += _default_problems(label, rows, sources)
     return problems
+
+
+def _unidentified(label: str, rows: list[int], sources: list[Source]) -> list[Problem]:
+    # The field a video is told apart by has to be there. Without it every half-filled
+    # row in the plan shares one identity and they merge into a single video with one
+    # audio track each, which is the failure the identity rule exists to prevent - and
+    # the same missing field is what leaves the video with no path to be written to.
+    head = sources[0]
+    if head.series and not head.number:
+        said = f"{label} has no number, so it cannot be told from another video of the series"
+    elif not head.series and not head.title:
+        # No label here: it would render as "(untitled)" and say the same thing twice.
+        said = "a standalone video has no title, so it cannot be told from another"
+    else:
+        return []
+    return [Problem(Severity.ERROR, said, tuple(rows))]
 
 
 def _disagreements(label: str, rows: list[int], sources: list[Source]) -> list[Problem]:
